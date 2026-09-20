@@ -5,8 +5,13 @@ import { Firestore } from '@google-cloud/firestore';
  * from Application Default Credentials — on Cloud Run that is the runtime
  * service account, so no key file ever has to ship with the image.
  */
-export function createFirestoreStore({ projectId, prefix = 'hopscotch' }) {
-  const db = new Firestore(projectId ? { projectId } : {});
+export function createFirestoreStore({ projectId, prefix = 'hopscotch', databaseId = '' }) {
+  const db = new Firestore({
+    ...(projectId ? { projectId } : {}),
+    // Omitted entirely rather than passed empty, so the client keeps its own
+    // '(default)' behaviour when no database is named.
+    ...(databaseId ? { databaseId } : {}),
+  });
   const col = (name) => db.collection(`${prefix}_${name}`);
 
   const stripUndefined = (obj) =>

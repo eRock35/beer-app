@@ -32,6 +32,7 @@ export async function initStore() {
     store = createFirestoreStore({
       projectId: config.firestoreProjectId,
       prefix: config.firestoreCollectionPrefix,
+      databaseId: config.firestoreDatabaseId,
     });
   } else {
     const { createSqliteStore } = await import('./sqlite.js');

@@ -46,6 +46,9 @@ export const config = {
   sqlitePath: fromPackageRoot(process.env.SQLITE_PATH || './data/hopscotch.sqlite'),
   firestoreProjectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT_ID,
   firestoreCollectionPrefix: process.env.FIRESTORE_PREFIX || 'hopscotch',
+  // A project's `(default)` database may be in Datastore mode, which this app
+  // cannot use. Naming a database keeps Hopscotch in its own Native-mode store.
+  firestoreDatabaseId: process.env.FIRESTORE_DATABASE_ID || '',
 
   breweryApiBase: process.env.BREWERY_API_BASE || 'https://api.openbrewerydb.org/v1',
   nominatimBase: process.env.NOMINATIM_BASE || 'https://nominatim.openstreetmap.org',

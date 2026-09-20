@@ -53,6 +53,7 @@ async function main() {
     res.json({
       ok: true,
       driver: config.dbDriver,
+      database: config.dbDriver === 'firestore' ? config.firestoreDatabaseId || '(default)' : undefined,
       ai: config.aiEnabled,
       version: process.env.APP_VERSION || 'dev',
     })
