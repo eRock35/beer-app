@@ -58,6 +58,9 @@ export const config = {
   anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-opus-5',
   aiEnabled: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
   aiDailyMessageLimit: Number(process.env.AI_DAILY_MESSAGE_LIMIT || 60),
+  // Shared secret for the scheduled dispatch sweep. Unset means the endpoint
+  // refuses every caller, which is the right default.
+  cronSecret: process.env.CRON_SECRET?.trim() || '',
 
   allowRegistration: bool(process.env.ALLOW_REGISTRATION, true),
   // When set, only these emails may register. Handy for a personal deployment.

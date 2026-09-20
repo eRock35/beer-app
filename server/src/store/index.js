@@ -14,6 +14,8 @@ export const COLLECTIONS = [
   'trips',
   'follows',
   'ai_usage',
+  'dispatch_watches',
+  'dispatch_finds',
 ];
 
 let store;

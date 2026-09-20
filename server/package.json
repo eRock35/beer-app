@@ -11,7 +11,7 @@
     "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
+    "@anthropic-ai/sdk": "^0.127.0",
     "@google-cloud/firestore": "^9.2.0",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.10.0",

@@ -15,6 +15,7 @@ import { pourRouter } from './routes/pours.js';
 import { cellarRouter, tripRouter, wishlistRouter } from './routes/collections.js';
 import { passportRouter } from './routes/passport.js';
 import { aiRouter } from './routes/ai.js';
+import { dispatchRouter } from './routes/dispatch.js';
 import { AXES } from './domain/scoring.js';
 import { FLAVOUR_TAGS, STYLES, STYLE_FAMILIES } from './domain/styles.js';
 
@@ -25,6 +26,9 @@ async function main() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(compression());
+  // Photos go to /api/ai/scan as base64, so that one route needs more headroom
+  // than everything else. The client downscales first; this is the ceiling.
+  app.use('/api/ai/scan', express.json({ limit: '8mb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
@@ -73,6 +77,7 @@ async function main() {
   app.use('/api/trips', tripRouter);
   app.use('/api/passport', passportRouter);
   app.use('/api/ai', aiRouter);
+  app.use('/api/dispatch', dispatchRouter);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'No such endpoint.' }));
 
@@ -98,11 +103,19 @@ async function main() {
 
   // eslint-disable-next-line no-unused-vars -- Express needs the 4-arg signature.
   app.use((err, req, res, _next) => {
-    const status = err instanceof HttpError ? err.status : 500;
-    if (status >= 500) console.error('[hopscotch]', err);
+    // An HttpError is one we raised on purpose, so its message is written for
+    // the user and is safe to send — including the 5xx ones like "the brewery
+    // directory is unreachable". Anything else is a genuine surprise: log it
+    // with its stack and tell the user nothing beyond that it broke.
+    const deliberate = err instanceof HttpError;
+    const status = deliberate ? err.status : 500;
+
+    if (!deliberate) console.error('[hopscotch] unhandled:', err);
+    else if (status >= 500) console.warn(`[hopscotch] ${status}: ${err.message}`);
+
     if (res.headersSent) return;
     res.status(status).json({
-      error: status >= 500 ? 'Something broke on our end.' : err.message,
+      error: deliberate ? err.message : 'Something broke on our end.',
       details: err.details,
     });
   });

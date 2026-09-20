@@ -8,6 +8,7 @@ import { TripsView } from './views/TripsView.jsx';
 import { CellarView } from './views/CellarView.jsx';
 import { FeedView } from './views/FeedView.jsx';
 import { SommelierView } from './views/SommelierView.jsx';
+import { DispatchView } from './views/DispatchView.jsx';
 import { AccountView } from './views/AccountView.jsx';
 import { AuthGate } from './views/AuthGate.jsx';
 
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'trips', label: 'Trips', icon: '✈️', view: TripsView },
   { id: 'cellar', label: 'Cellar', icon: '🛢️', view: CellarView },
   { id: 'feed', label: 'Feed', icon: '🍻', view: FeedView, public: true },
+  { id: 'dispatch', label: 'Dispatch', icon: '📡', view: DispatchView },
   { id: 'sommelier', label: 'Sommelier', icon: '🎩', view: SommelierView },
   { id: 'account', label: 'Account', icon: '⚙️', view: AccountView, hidden: true },
 ];

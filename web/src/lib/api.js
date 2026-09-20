@@ -59,6 +59,15 @@ export const api = {
   remove: (kind, id) => request(`/${kind}/${id}`, { method: 'DELETE' }),
 
   aiStatus: () => request('/ai/status'),
+  scan: (body) => request('/ai/scan', { method: 'POST', body }),
+  lookup: (body) => request('/ai/lookup', { method: 'POST', body }),
+
+  dispatch: () => request('/dispatch'),
+  addWatch: (body) => request('/dispatch/watches', { method: 'POST', body }),
+  updateWatch: (id, body) => request(`/dispatch/watches/${id}`, { method: 'PATCH', body }),
+  removeWatch: (id) => request(`/dispatch/watches/${id}`, { method: 'DELETE' }),
+  scanWatch: (id) => request(`/dispatch/watches/${id}/scan`, { method: 'POST' }),
+  updateFind: (id, body) => request(`/dispatch/finds/${id}`, { method: 'PATCH', body }),
   polishNotes: (body) => request('/ai/polish-notes', { method: 'POST', body }),
   tripPlan: (body) => request('/ai/trip-plan', { method: 'POST', body }),
   nextPour: (question) => request('/ai/next-pour', { method: 'POST', body: { question } }),

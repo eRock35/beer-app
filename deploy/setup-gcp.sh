@@ -26,7 +26,8 @@ gcloud services enable \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
   firestore.googleapis.com \
-  secretmanager.googleapis.com
+  secretmanager.googleapis.com \
+  cloudscheduler.googleapis.com
 
 echo "==> Artifact Registry repository"
 gcloud artifacts repositories describe "$REPO" --location="$REGION" >/dev/null 2>&1 || \
@@ -60,6 +61,9 @@ create_secret hopscotch-jwt-secret "$(openssl rand -base64 48)"
 # --set-secrets reference valid either way.
 create_secret hopscotch-anthropic-key "${ANTHROPIC_API_KEY:-}"
 
+# Guards the scheduled Dispatch sweep, which runs without a user session.
+create_secret hopscotch-cron-secret "$(openssl rand -hex 32)"
+
 echo "==> Granting the Cloud Run runtime service account what it needs"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
@@ -79,4 +83,12 @@ Setup complete.
   Next:   ./deploy/deploy.sh
   AI on:  printf '%s' "sk-ant-..." | gcloud secrets versions add hopscotch-anthropic-key --data-file=-
           (then redeploy so Cloud Run picks up the new version)
+
+  Weekly Dispatch sweep (optional, after the first deploy):
+    URL=\$(gcloud run services describe ${SERVICE} --region=${REGION} --format='value(status.url)')
+    SECRET=\$(gcloud secrets versions access latest --secret=hopscotch-cron-secret)
+    gcloud scheduler jobs create http hopscotch-dispatch \\
+      --location=${REGION} --schedule="0 14 * * 1" \\
+      --uri="\$URL/api/dispatch/cron" --http-method=POST \\
+      --headers="x-cron-secret=\$SECRET"
 DONE

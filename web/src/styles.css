@@ -355,7 +355,21 @@ a { color: var(--brand); text-decoration-thickness: 1px; text-underline-offset: 
 /* ---------- mobile bottom nav ---------- */
 .tabbar { display: none; }
 
-@media (max-width: 860px) {
+/* The nav carries eight sections. Between a phone and a wide desktop there is a
+   band where they fit only if the chrome gives way first — the brand subtitle
+   goes, then the tab padding tightens. */
+@media (max-width: 1400px) {
+  .brand-sub { display: none; }
+}
+@media (max-width: 1240px) {
+  .nav-item { padding: 7px 9px; font-size: 0.82rem; gap: 5px; }
+  .topbar { gap: 8px; }
+}
+@media (max-width: 1080px) {
+  .nav-item { padding: 7px 7px; font-size: 0.78rem; }
+}
+
+@media (max-width: 900px) {
   /* A phone in a taproom wants thumb-reachable navigation, not a scrolling
      strip of tabs squeezed into the header. */
   .topbar .nav { display: none; }
@@ -382,3 +396,71 @@ a { color: var(--brand); text-decoration-thickness: 1px; text-underline-offset: 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- scan ---------- */
+.scan-cta {
+  border-style: dashed;
+  border-color: var(--brand);
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  font-weight: 700;
+}
+.scan-cta:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 18%, var(--surface-1)); }
+
+.scan-drop {
+  text-align: center;
+  padding: 32px 20px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.scan-preview {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+  background: var(--surface-2);
+  max-height: 320px;
+  display: grid;
+  place-items: center;
+}
+.scan-preview img { max-width: 100%; max-height: 320px; display: block; object-fit: contain; }
+
+.scan-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px 14px; }
+.scan-fact .label { margin-bottom: 1px; }
+
+/* A single continuous measure, so it gets a ramp rather than a category colour. */
+.haze-scale {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 6px;
+  background: linear-gradient(90deg, #cde2fb 0%, #86b6ef 35%, #2a78d6 70%, #104281 100%);
+  border: 1px solid var(--border);
+}
+.haze-fill { display: none; }
+.haze-marker {
+  position: absolute; top: 50%; width: 4px; height: 20px;
+  background: var(--text-primary); border: 2px solid var(--surface-1);
+  border-radius: 3px; transform: translate(-50%, -50%);
+  box-shadow: var(--shadow);
+}
+.haze-ends {
+  display: flex; justify-content: space-between;
+  font-size: 0.72rem; color: var(--text-muted); margin-top: 5px;
+  text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+}
+
+.source-list { margin-top: 10px; display: grid; gap: 4px; }
+.source-list li { font-size: 0.82rem; }
+.source-list a { color: var(--text-secondary); word-break: break-word; }
+.source-list a:hover { color: var(--brand); }
+
+/* ---------- dispatch ---------- */
+.watch-card { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.find-card { border-left: 4px solid var(--border-strong); }
+.find-card.is-confirmed { border-left-color: var(--good); }
+.find-card.is-likely { border-left-color: var(--series-1); }
+.find-card.is-rumour { border-left-color: var(--warning); }
+.find-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.82rem; color: var(--text-secondary); margin-top: 6px; }

@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import Anthropic from '@anthropic-ai/sdk';
+import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
 import { config } from '../config.js';
 import { getStore } from '../store/index.js';
 import { HttpError, parse, wrap } from '../lib/http.js';
 import { requireUser } from '../auth.js';
 import { AXES } from '../domain/scoring.js';
+import {
+  ALLOWED_IMAGE_TYPES,
+  decodeImagePayload,
+  SCAN_SCHEMA,
+  SCAN_SYSTEM,
+} from '../domain/vision.js';
+import { searchWeb } from '../domain/research.js';
 
 /**
  * The API key lives only in this process. The browser never sees it, never
@@ -25,20 +33,59 @@ function anthropic() {
 }
 
 /** Per-user daily cap, so one runaway tab cannot drain the account. */
-async function checkQuota(userId) {
+async function checkQuota(userId, cost = 1) {
   const store = getStore();
   const day = new Date().toISOString().slice(0, 10);
   const id = `${userId}_${day}`;
   const row = (await store.get('ai_usage', id)) || { userId, day, count: 0 };
-  if (row.count >= config.aiDailyMessageLimit) {
+  if (row.count + cost > config.aiDailyMessageLimit) {
     throw new HttpError(
       429,
-      `You have used today's ${config.aiDailyMessageLimit} sommelier messages. It resets at midnight UTC.`
+      `You have used today's ${config.aiDailyMessageLimit} sommelier requests. It resets at midnight UTC.`
     );
   }
-  await store.put('ai_usage', id, { ...row, count: row.count + 1, updatedAt: new Date().toISOString() });
-  return config.aiDailyMessageLimit - row.count - 1;
+  await store.put('ai_usage', id, {
+    ...row,
+    count: row.count + cost,
+    updatedAt: new Date().toISOString(),
+  });
+  return config.aiDailyMessageLimit - row.count - cost;
 }
+
+/**
+ * Turns an SDK error into something the user can act on. Without this an
+ * expired key or an overloaded upstream both surface as a bare 500, which tells
+ * whoever is running the deployment nothing.
+ */
+export function mapAnthropicError(err) {
+  if (err instanceof HttpError) return err;
+
+  const status = err?.status ?? err?.response?.status;
+  if (status === 401 || status === 403) {
+    return new HttpError(503, 'The sommelier’s API key was rejected. Check ANTHROPIC_API_KEY on the server.');
+  }
+  if (status === 429) {
+    return new HttpError(429, 'Claude is rate-limiting this key. Give it a moment.');
+  }
+  if (status === 400) {
+    return new HttpError(422, `Claude could not process that: ${err?.message || 'bad request'}`);
+  }
+  if (status >= 500 || err?.name === 'APIConnectionError' || err?.name === 'APIConnectionTimeoutError') {
+    return new HttpError(503, 'Claude is having a moment. Try again shortly.');
+  }
+  return new HttpError(502, err?.message || 'The sommelier failed unexpectedly.');
+}
+
+/** Runs an SDK call with the error mapping applied. */
+export async function callClaude(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    throw mapAnthropicError(err);
+  }
+}
+
+export { anthropic, checkQuota };
 
 const SOMMELIER_SYSTEM = `You are the sommelier inside Hopscotch, a craft beer passport app.
 
@@ -189,7 +236,7 @@ aiRouter.post(
       }
       send('done', { usage: final.usage });
     } catch (err) {
-      send('error', { message: err?.message || 'The sommelier lost its train of thought.' });
+      send('error', { message: mapAnthropicError(err).message });
     } finally {
       res.end();
     }
@@ -198,14 +245,16 @@ aiRouter.post(
 
 /** One-shot helpers. Non-streaming: the answers are short by design. */
 async function oneShot({ system, prompt, maxTokens = 2000 }) {
-  const response = await anthropic().messages.create({
-    model: config.anthropicModel,
-    max_tokens: maxTokens,
-    thinking: { type: 'adaptive' },
-    output_config: { effort: 'low' },
-    system,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const response = await callClaude(() =>
+    anthropic().messages.create({
+      model: config.anthropicModel,
+      max_tokens: maxTokens,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+      system,
+      messages: [{ role: 'user', content: prompt }],
+    })
+  );
   if (response.stop_reason === 'refusal') {
     throw new HttpError(422, 'The model declined that request.');
   }
@@ -324,5 +373,106 @@ Recommend three specific beers, each with one sentence on why it follows from wh
     });
 
     res.json({ answer: text });
+  })
+);
+
+/* -------------------------------------------------------------------------
+ * Photo scan
+ * ---------------------------------------------------------------------- */
+
+const scanInput = z.object({
+  // A data URL from the browser's canvas, or bare base64 plus a media type.
+  image: z.string().min(64).max(9_000_000),
+  mediaType: z.enum(ALLOWED_IMAGE_TYPES).optional(),
+  hint: z.string().max(300).optional(),
+});
+
+/**
+ * Reads a photo of a can, a bottle or a poured beer. Fills in what can be seen
+ * and deliberately refuses to fill in what cannot — see domain/vision.js.
+ */
+aiRouter.post(
+  '/scan',
+  wrap(async (req, res) => {
+    const body = parse(scanInput, req.body);
+    anthropic();
+    const remaining = await checkQuota(req.user.id, 1);
+    let mediaType;
+    let data;
+    try {
+      ({ mediaType, data } = decodeImagePayload(body.image, body.mediaType));
+    } catch (err) {
+      throw new HttpError(err.status || 400, err.message);
+    }
+
+    const response = await callClaude(() =>
+      anthropic().messages.parse({
+        model: config.anthropicModel,
+        max_tokens: 8000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'medium', format: jsonSchemaOutputFormat(SCAN_SCHEMA) },
+        system: SCAN_SYSTEM,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
+              {
+                type: 'text',
+                text: body.hint
+                  ? `Read this beer. Context from the drinker: ${body.hint}`
+                  : 'Read this beer.',
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+    if (response.stop_reason === 'refusal') {
+      throw new HttpError(422, 'The model declined to read that image.');
+    }
+    if (!response.parsed_output) {
+      throw new HttpError(502, 'The scan came back unreadable. Try another photo.');
+    }
+
+    res.json({ scan: response.parsed_output, remaining });
+  })
+);
+
+/* -------------------------------------------------------------------------
+ * Look a beer up on the open web
+ * ---------------------------------------------------------------------- */
+
+const lookupInput = z.object({
+  beerName: z.string().trim().min(1).max(160),
+  brewery: z.string().trim().max(160).default(''),
+});
+
+/**
+ * What the web says about a specific beer. Separate from /scan because it costs
+ * a search and most scans do not need one — and because everything it reports
+ * has to carry a source the drinker can check.
+ */
+aiRouter.post(
+  '/lookup',
+  wrap(async (req, res) => {
+    const body = parse(lookupInput, req.body);
+    anthropic();
+    await checkQuota(req.user.id, 2);
+
+    const { text, sources, searched } = await callClaude(() =>
+      searchWeb(anthropic(), {
+        model: config.anthropicModel,
+        system: `${SOMMELIER_SYSTEM}
+
+Report what the open web says about one specific beer: its style, ABV, whether it is seasonal or year-round, how it is generally regarded, and anything notable about how it is released or distributed. Attribute claims to what you found. If the beer looks retired, discontinued or renamed, lead with that. If you cannot confirm the beer exists, say so plainly instead of describing a plausible beer. Under 180 words, no headings.`,
+        prompt: `Beer: ${body.beerName}${body.brewery ? ` by ${body.brewery}` : ''}`,
+        maxUses: 4,
+        maxTokens: 4000,
+      })
+    );
+
+    res.json({ answer: text, sources, searched });
   })
 );

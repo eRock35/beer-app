@@ -19,6 +19,12 @@ colour-coded by whether you have been, want to go, or have never heard of it —
 each with its own icon and legend label, so the colour is never doing the work
 alone.
 
+**Scan** — Point the camera at the can and it reads the name, brewery, style and
+ABV off the label. Point it at the glass and it judges the appearance: colour
+with an SRM estimate, haziness on a 0–10 scale, head formation and retention,
+lacing — and scores the Appearance axis for you. See
+[what the camera can and cannot do](#what-the-camera-can-and-cannot-do).
+
 **Journal** — Score a beer the way a judge would: aroma, appearance, flavour,
 mouthfeel, overall, each 0–10. Those roll into a single **Snob Score** out of
 100, weighted so flavour carries 35% and appearance only 10%. Tag flavours from
@@ -42,6 +48,11 @@ what to order at each stop.
 its drink window. Sorted so anything urgent floats to the top.
 
 **Feed** — Pours you mark public, and cheers from everyone else.
+
+**Dispatch** — Watch a brewery or a style in the places you pass through, and
+have the open web searched for what is actually landing there. Every find
+carries the link it came from and an honest confidence rating. See
+[what Dispatch can actually see](#what-dispatch-can-actually-see).
 
 **Sommelier** *(optional)* — Claude, with read access to your journal, cellar and
 wishlist, so it can answer questions that actually depend on them. Streams its
@@ -101,6 +112,11 @@ taxonomy and the crawl planner have no I/O and no framework, which is why they
 can be tested directly and why the AI prompts can reuse the same route ordering
 the map shows you.
 
+**Vision and search live in the domain layer, not the route.** The scan schema,
+its system prompt and the image decoder sit in `domain/vision.js`, so the rule
+that matters most — a photo may score appearance and nothing else — is unit
+tested rather than trusted.
+
 **No chart library.** The four charts are inline SVG, which keeps the bundle
 small and means the colours come from CSS custom properties and therefore track
 the light/dark theme for free. The categorical palette is validated for
@@ -126,9 +142,69 @@ Four endpoints, all authenticated:
 | Endpoint | What it does |
 |---|---|
 | `POST /api/ai/chat` | Streaming chat (SSE) with your journal, cellar and wishlist in context |
+| `POST /api/ai/scan` | Reads a photo of a can or a poured beer (structured output) |
+| `POST /api/ai/lookup` | What the open web says about one beer, with sources |
 | `POST /api/ai/polish-notes` | Edits rough tasting notes — never adds a flavour you did not describe |
 | `POST /api/ai/trip-plan` | Turns a planned route into an actual evening |
 | `POST /api/ai/next-pour` | Three specific recommendations based on what you have been drinking |
+| `POST /api/dispatch/watches/:id/scan` | Web-search sweep for one watch |
+| `POST /api/dispatch/cron` | Sweeps every active watch; guarded by `CRON_SECRET`, not a session |
+
+### What the camera can and cannot do
+
+A photograph carries real information about a beer, and none at all about how it
+tastes. The scan is built around that line and does not blur it.
+
+**It scores Appearance**, because appearance is visible. Colour, SRM, clarity,
+haze, head formation and retention, lacing, glassware — judged against what the
+style should look like, so an opaque hazy IPA reads as correct and a hazy Helles
+reads as a fault. That score drops straight into the Appearance axis.
+
+**It refuses to score Aroma, Flavour, Mouthfeel or Overall.** Those four stay
+empty for you to fill in after you have actually drunk it. The scan schema has
+no field for them, and there is a test asserting it never gains one — that
+guarantee is structural, not an instruction the model is asked to remember.
+
+What it reports beyond that is either read off the label (and marked as such) or
+labelled as a style expectation — what the style is *usually* like, never a
+verdict on the beer in your hand. Where the ABV is not printed, you get a
+style-typical range marked "estimated", not a number presented as fact.
+
+### What Dispatch can actually see
+
+There is no public feed of beer distribution. Where a pallet is going next
+Thursday is not published data, and any app claiming otherwise is guessing. What
+*is* public is what breweries, bottle shops and beer press post on the open web.
+
+So a Dispatch scan is a real web search, and the results are shaped by that:
+
+- Every find carries the source URL it came from, and the app drops any citation
+  the search did not actually visit.
+- Confidence is marked honestly — `confirmed` requires a source stating it
+  outright with a date; anything softer is `likely` or `rumour`.
+- An empty result is a valid answer. The scout is told that under-reporting is
+  the correct failure mode here, because a plausible invented release is worse
+  than nothing.
+
+It will miss things. Treat it as a scout, not a feed, and check before you drive
+somewhere.
+
+### Scheduled scans
+
+`POST /api/dispatch/cron` sweeps every active watch for every user. It is
+guarded by the `CRON_SECRET` header rather than a session, so Cloud Scheduler
+can call it:
+
+```bash
+gcloud scheduler jobs create http hopscotch-dispatch \
+  --location=us-central1 \
+  --schedule="0 14 * * 1" \
+  --uri="https://YOUR-SERVICE-URL/api/dispatch/cron" \
+  --http-method=POST \
+  --headers="x-cron-secret=YOUR_SECRET"
+```
+
+One failing watch is logged and skipped rather than aborting the sweep.
 
 Model defaults to `claude-opus-5` with adaptive thinking; override with
 `ANTHROPIC_MODEL`.

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp } from '../store.jsx';
-import { Banner, Field, ScorePill, Spinner } from '../components/ui.jsx';
+import { Banner, Field, ScorePill, Sheet, Spinner } from '../components/ui.jsx';
+import { ScanSheet } from '../components/ScanSheet.jsx';
 
 const EMPTY = {
   beerName: '',
@@ -55,6 +56,7 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
   const [busy, setBusy] = useState(false);
   const [polishing, setPolishing] = useState(false);
   const [tagFilter, setTagFilter] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const setScore = (key, value) => setForm((f) => ({ ...f, scores: { ...f.scores, [key]: value } }));
@@ -73,6 +75,31 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
     // Chosen tags stay pinned at the front so they never scroll out of reach.
     return [...form.tags, ...pool.filter((t) => !form.tags.includes(t))].slice(0, needle ? 40 : 34);
   }, [flavourTags, tagFilter, form.tags]);
+
+  /**
+   * Takes a scan and fills in only what a photo can honestly supply: the label
+   * details and the Appearance axis. The other four axes stay untouched.
+   */
+  const applyScan = (result) => {
+    setForm((f) => {
+      const knownStyle = styles.some((s) => s.name === result.style);
+      return {
+        ...f,
+        beerName: result.beerName || f.beerName,
+        brewery: result.brewery || f.brewery,
+        style: knownStyle ? result.style : f.style,
+        abv: result.abv ?? f.abv,
+        scores: result.appearanceScore != null
+          ? { ...f.scores, appearance: result.appearanceScore }
+          : f.scores,
+        tags: [...new Set([...f.tags, ...(result.tags || [])])],
+        notes: result.appearanceNote && !f.notes
+          ? `Appearance: ${result.appearanceNote}`
+          : f.notes,
+      };
+    });
+    setScanning(false);
+  };
 
   const polish = async () => {
     if (!form.notes.trim()) {
@@ -139,6 +166,17 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
 
   return (
     <form onSubmit={submit}>
+      {aiEnabled && !existing && (
+        <button
+          type="button"
+          className="btn btn-block scan-cta"
+          onClick={() => setScanning(true)}
+          style={{ marginBottom: 16 }}
+        >
+          📷 Scan the can or the glass
+        </button>
+      )}
+
       <div className="row">
         <Field label="Beer" id="pf-name">
           <input
@@ -325,6 +363,15 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
           </button>
         )}
       </div>
+
+      <Sheet
+        open={scanning}
+        onClose={() => setScanning(false)}
+        title="Scan a beer"
+        subtitle="Label for the facts, glass for the appearance score"
+      >
+        <ScanSheet onApply={applyScan} onClose={() => setScanning(false)} />
+      </Sheet>
     </form>
   );
 }
