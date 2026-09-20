@@ -1,0 +1,59 @@
+# Cloud Build → Artifact Registry → Cloud Run.
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_REGION=us-central1,_SERVICE=hopscotch
+#
+# Secrets are never baked into the image. JWT_SECRET and ANTHROPIC_API_KEY are
+# read from Secret Manager at deploy time and injected as env vars.
+substitutions:
+  _REGION: us-central1
+  _SERVICE: hopscotch
+  _REPO: hopscotch
+  _JWT_SECRET_NAME: hopscotch-jwt-secret
+  _ANTHROPIC_SECRET_NAME: hopscotch-anthropic-key
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest'
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest'
+      - '--build-arg'
+      - 'APP_VERSION=${SHORT_SHA}'
+      - '.'
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}']
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--cpu=1'
+      - '--memory=512Mi'
+      - '--min-instances=0'
+      - '--max-instances=4'
+      # The sommelier streams, and a long itinerary answer can take a while.
+      - '--timeout=300'
+      - '--set-env-vars=NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},APP_VERSION=${SHORT_SHA}'
+      - '--set-secrets=JWT_SECRET=${_JWT_SECRET_NAME}:latest,ANTHROPIC_API_KEY=${_ANTHROPIC_SECRET_NAME}:latest'

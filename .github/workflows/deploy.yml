@@ -1,0 +1,37 @@
+name: Deploy to Cloud Run
+
+# Manual only — a beer app does not need to redeploy on every push.
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Cloud Run region
+        default: us-central1
+
+env:
+  SERVICE: hopscotch
+  REPO: hopscotch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Prefer Workload Identity Federation over a downloaded key: set
+      # GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT as repo secrets.
+      # GCP_SA_KEY (a JSON key) is the fallback if federation is not set up.
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit build and deploy
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --substitutions=_REGION=${{ inputs.region }},_SERVICE=$SERVICE,_REPO=$REPO,SHORT_SHA=${GITHUB_SHA::7}

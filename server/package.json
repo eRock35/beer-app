@@ -1,0 +1,25 @@
+{
+  "name": "@hopscotch/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "seed": "node src/seed.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@google-cloud/firestore": "^9.2.0",
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^11.10.0",
+    "compression": "^1.8.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.25.76"
+  }
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store
+.vite/
+coverage/
+
+# Never commit cloud credentials
+*service-account*.json
+*-credentials.json
+gcp-key.json

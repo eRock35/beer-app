@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+web/dist
+data
+.git
+.github
+*.md
+!README.md
+.env
+.env.*
+*service-account*.json
