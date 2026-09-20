@@ -5,9 +5,18 @@ const AppContext = createContext(null);
 
 const THEME_KEY = 'hopscotch:theme';
 
+const THEME_COLOURS = { light: '#f5f3ee', dark: '#121211' };
+
 function applyTheme(theme) {
   if (theme === 'system') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', theme);
+  // The two media-scoped <meta name="theme-color"> tags follow the OS; a manual
+  // override needs both to agree with the forced theme, or the iOS status bar
+  // and the page disagree.
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+    const scheme = meta.media?.includes('dark') ? 'dark' : 'light';
+    meta.content = THEME_COLOURS[theme === 'system' ? scheme : theme];
+  }
 }
 
 export function AppProvider({ children }) {

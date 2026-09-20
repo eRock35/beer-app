@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { downscaleToDataUrl } from '../lib/image.js';
-import { Banner, Field, Spinner } from './ui.jsx';
+import { Banner, Field, FormGroup, Spinner } from './ui.jsx';
+import { AlertIcon, CameraIcon, CheckIcon, SearchIcon } from './icons.jsx';
 
 const CLARITY_HELP = {
   brilliant: 'Star-bright. Nothing in suspension.',
@@ -29,6 +30,7 @@ export function ScanSheet({ onApply, onClose }) {
   const [lookup, setLookup] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
   const fileRef = useRef(null);
+  const libraryRef = useRef(null);
 
   const choose = async (event) => {
     const file = event.target.files?.[0];
@@ -93,17 +95,21 @@ export function ScanSheet({ onApply, onClose }) {
     <div>
       {!preview && (
         <div className="scan-drop">
-          <span className="empty-icon" aria-hidden="true">📷</span>
-          <p className="secondary" style={{ maxWidth: '40ch', margin: '0 auto 16px' }}>
+          <span className="empty-icon" aria-hidden="true"><CameraIcon /></span>
+          <p className="secondary" style={{ maxWidth: '40ch', margin: '0 auto 16px', fontSize: 15 }}>
             Shoot the <strong>can or bottle</strong> to pull the name, brewery, style and ABV off
             the label. Shoot the <strong>glass</strong> to have the appearance judged — colour,
             haziness, head, lacing.
           </p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button type="button" className="btn btn-primary" onClick={() => fileRef.current?.click()}>
-              📷 Take a photo
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary btn-lg" onClick={() => fileRef.current?.click()}>
+              <CameraIcon /> Take a photo
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => libraryRef.current?.click()}>
+              Choose from library
             </button>
           </div>
+          {/* `capture` sends iOS straight to the camera; the second input is the photo library. */}
           <input
             ref={fileRef}
             type="file"
@@ -111,6 +117,17 @@ export function ScanSheet({ onApply, onClose }) {
             capture="environment"
             onChange={choose}
             style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
+          />
+          <input
+            ref={libraryRef}
+            type="file"
+            accept="image/*"
+            onChange={choose}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
           />
         </div>
       )}
@@ -123,20 +140,25 @@ export function ScanSheet({ onApply, onClose }) {
 
           {!scan && (
             <>
-              <Field label="Anything worth mentioning?" id="scan-hint" hint="Optional. Bad lighting, a glass that is not yours, half drunk already.">
-                <input
-                  id="scan-hint"
-                  className="input"
-                  value={hint}
-                  onChange={(e) => setHint(e.target.value)}
-                  placeholder="Taproom lighting is orange"
-                />
-              </Field>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={run} disabled={busy}>
+              <FormGroup>
+                <Field label="Anything worth mentioning?" id="scan-hint" hint="Optional. Bad lighting, a glass that is not yours, half drunk already.">
+                  <input
+                    id="scan-hint"
+                    className="input"
+                    value={hint}
+                    onChange={(e) => setHint(e.target.value)}
+                    placeholder="Taproom lighting is orange"
+                    autoCapitalize="sentences"
+                    autoComplete="off"
+                    enterKeyHint="done"
+                  />
+                </Field>
+              </FormGroup>
+              <div className="form-actions">
+                <button type="button" className="btn btn-primary btn-lg" onClick={run} disabled={busy}>
                   {busy ? <Spinner label="Reading the beer" /> : 'Read this beer'}
                 </button>
-                <button type="button" className="btn" onClick={() => { setPreview(null); setScan(null); }}>
+                <button type="button" className="btn btn-secondary btn-lg" onClick={() => { setPreview(null); setScan(null); }}>
                   Retake
                 </button>
               </div>
@@ -166,14 +188,17 @@ export function ScanSheet({ onApply, onClose }) {
                 }
               />
             </div>
-            <p className="muted" style={{ fontSize: '0.8rem', margin: '10px 0 0' }}>
+            <p className="muted" style={{ fontSize: 13, margin: '10px 0 0', display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+              {identified?.readFromLabel ? <CheckIcon size={15} style={{ flex: '0 0 auto', marginTop: 2, color: 'var(--green)' }} /> : <AlertIcon size={15} style={{ flex: '0 0 auto', marginTop: 2, color: 'var(--orange)' }} />}
+              <span>
               {identified?.readFromLabel
-                ? '✓ Read off the label.'
-                : '⚠ Inferred from appearance, not read off a label — check it.'}
+                ? 'Read off the label.'
+                : 'Inferred from appearance, not read off a label — check it.'}
               {identified?.confidence && ` Confidence: ${identified.confidence}.`}
+              </span>
             </p>
             {identified?.notes && (
-              <p className="secondary" style={{ fontSize: '0.85rem', margin: '6px 0 0' }}>{identified.notes}</p>
+              <p className="secondary" style={{ fontSize: 14, margin: '6px 0 0' }}>{identified.notes}</p>
             )}
           </section>
 
@@ -186,13 +211,13 @@ export function ScanSheet({ onApply, onClose }) {
               {appearance?.score != null && (
                 <span className="score-pill" style={{ '--tone': 'var(--series-1)' }}>
                   {appearance.score}
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, marginLeft: 2 }}>/10</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>/10</span>
                 </span>
               )}
             </div>
 
             {appearance?.score == null ? (
-              <p className="secondary" style={{ fontSize: '0.88rem', margin: '10px 0 0' }}>
+              <p className="secondary" style={{ fontSize: 14, margin: '10px 0 0' }}>
                 No poured beer visible, so there is nothing to score. Photograph the glass to get an
                 appearance score.
               </p>
@@ -209,7 +234,7 @@ export function ScanSheet({ onApply, onClose }) {
                   <div style={{ marginTop: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                       <span className="label">Haziness</span>
-                      <span className="tabular" style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                      <span className="tabular" style={{ fontWeight: 700, fontSize: 14 }}>
                         {appearance.clarity}
                       </span>
                     </div>
@@ -226,7 +251,7 @@ export function ScanSheet({ onApply, onClose }) {
                 )}
 
                 {appearance.reasoning && (
-                  <p className="secondary" style={{ fontSize: '0.88rem', margin: '12px 0 0', lineHeight: 1.6 }}>
+                  <p className="secondary" style={{ fontSize: 14, margin: '12px 0 0', lineHeight: 1.6 }}>
                     {appearance.reasoning}
                   </p>
                 )}
@@ -239,7 +264,7 @@ export function ScanSheet({ onApply, onClose }) {
               <div className="chart-title">Worth noticing</div>
               <div className="chips" style={{ marginTop: 8 }}>
                 {scan.flags.map((f) => (
-                  <span className="chip" key={f} style={{ borderColor: 'var(--warning)' }}>⚠ {f}</span>
+                  <span className="chip chip-sm" key={f} style={{ boxShadow: 'inset 0 0 0 1.5px var(--warning)' }}><AlertIcon size={14} /> {f}</span>
                 ))}
               </div>
             </section>
@@ -250,7 +275,7 @@ export function ScanSheet({ onApply, onClose }) {
             <div className="chart-sub">
               An expectation for the style — not a verdict on this beer. Nobody has tasted it but you.
             </div>
-            <p className="secondary" style={{ fontSize: '0.9rem', margin: '4px 0 0', lineHeight: 1.6 }}>
+            <p className="secondary" style={{ fontSize: 15, margin: '4px 0 0', lineHeight: 1.6 }}>
               {scan.expectations}
             </p>
           </section>
@@ -258,14 +283,14 @@ export function ScanSheet({ onApply, onClose }) {
           {lookup ? (
             <section className="card card-tight">
               <div className="chart-title">What the web says</div>
-              <p className="secondary" style={{ fontSize: '0.9rem', margin: '8px 0 0', lineHeight: 1.6 }}>
+              <p className="secondary" style={{ fontSize: 15, margin: '8px 0 0', lineHeight: 1.6 }}>
                 {lookup.answer}
               </p>
               {lookup.sources?.length > 0 && (
                 <ul className="list-reset source-list">
                   {lookup.sources.map((s) => (
                     <li key={s.url}>
-                      <a href={s.url} target="_blank" rel="noreferrer noopener">{s.title}</a>
+                      <a href={s.url} target="_blank" rel="noopener noreferrer">{s.title}</a>
                     </li>
                   ))}
                 </ul>
@@ -273,26 +298,26 @@ export function ScanSheet({ onApply, onClose }) {
             </section>
           ) : (
             identified?.beerName && (
-              <button type="button" className="btn" onClick={runLookup} disabled={lookingUp}>
-                {lookingUp ? <Spinner /> : '🔎 Look this beer up on the web'}
+              <button type="button" className="btn btn-secondary btn-block" onClick={runLookup} disabled={lookingUp}>
+                {lookingUp ? <Spinner /> : <><SearchIcon /> Look this beer up on the web</>}
               </button>
             )
           )}
 
           {scan.caveats && (
-            <p className="muted" style={{ fontSize: '0.82rem', margin: 0 }}>{scan.caveats}</p>
+            <p className="muted" style={{ fontSize: 13, margin: 0 }}>{scan.caveats}</p>
           )}
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={apply}>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary btn-lg" onClick={apply}>
               Use this — then taste it yourself
             </button>
-            <button type="button" className="btn" onClick={() => { setPreview(null); setScan(null); setLookup(null); }}>
+            <button type="button" className="btn btn-secondary btn-lg" onClick={() => { setPreview(null); setScan(null); setLookup(null); }}>
               Retake
             </button>
           </div>
 
-          <p className="muted" style={{ fontSize: '0.8rem', margin: 0, textAlign: 'center' }}>
+          <p className="muted" style={{ fontSize: 13, margin: 0, textAlign: 'center' }}>
             Aroma, flavour, mouthfeel and overall are left blank on purpose. A photo cannot taste.
           </p>
         </div>

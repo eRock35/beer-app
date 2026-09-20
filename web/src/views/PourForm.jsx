@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp } from '../store.jsx';
-import { Banner, Field, ScorePill, Sheet, Spinner } from '../components/ui.jsx';
+import { Banner, Field, FormGroup, ScorePill, Sheet, Spinner } from '../components/ui.jsx';
+import { CameraIcon, SparkleIcon } from '../components/icons.jsx';
 import { ScanSheet } from '../components/ScanSheet.jsx';
 
 const EMPTY = {
@@ -169,15 +170,15 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
       {aiEnabled && !existing && (
         <button
           type="button"
-          className="btn btn-block scan-cta"
+          className="btn btn-block btn-lg scan-cta"
           onClick={() => setScanning(true)}
           style={{ marginBottom: 16 }}
         >
-          📷 Scan the can or the glass
+          <CameraIcon /> Scan the can or the glass
         </button>
       )}
 
-      <div className="row">
+      <FormGroup>
         <Field label="Beer" id="pf-name">
           <input
             id="pf-name"
@@ -186,6 +187,9 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
             value={form.beerName}
             onChange={(e) => set('beerName', e.target.value)}
             placeholder="Beer: Barrel Aged"
+            autoCapitalize="words"
+            autoComplete="off"
+            enterKeyHint="next"
           />
         </Field>
         <Field label="Brewery" id="pf-brewery">
@@ -195,11 +199,12 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
             value={form.brewery}
             onChange={(e) => set('brewery', e.target.value)}
             placeholder="Side Project Brewing"
+            autoCapitalize="words"
+            autoComplete="off"
+            enterKeyHint="next"
           />
         </Field>
-      </div>
 
-      <div className="row">
         <Field label="Style" id="pf-style">
           <select id="pf-style" className="select" value={form.style} onChange={(e) => set('style', e.target.value)}>
             {styles.map((s) => (
@@ -209,135 +214,146 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
             ))}
           </select>
         </Field>
-        <Field label="ABV %" id="pf-abv">
-          <input
-            id="pf-abv"
-            className="input"
-            type="number"
-            step="0.1"
-            min="0"
-            max="80"
-            value={form.abv}
-            onChange={(e) => set('abv', e.target.value)}
-          />
-        </Field>
-        <Field label="Serving" id="pf-format">
-          <select
-            id="pf-format"
-            className="select"
-            value={form.servingFormat}
-            onChange={(e) => set('servingFormat', e.target.value)}
-          >
-            {['draft', 'can', 'bottle', 'crowler', 'cask', 'taster'].map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-
-      <hr className="divider" />
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div className="label" style={{ marginBottom: 2 }}>Score it</div>
-          <div className="hint">
-            Flavour carries the most weight, appearance the least. Axes you never touch stay
-            unscored and are left out of the total.
-          </div>
-        </div>
-        <ScorePill score={score} />
-      </div>
-
-      {axes.map((axis) => {
-        const value = form.scores[axis.key];
-        return (
-          <div key={axis.key} style={{ marginBottom: 12 }}>
-            <label
-              htmlFor={`pf-${axis.key}`}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}
-            >
-              <span className="label">
-                {axis.label} <span className="muted" style={{ textTransform: 'none', letterSpacing: 0 }}>·{' '}
-                  {Math.round(axis.weight * 100)}%</span>
-              </span>
-              <span className="tabular" style={{ fontWeight: 700 }}>
-                {value == null ? '—' : Number(value).toFixed(1)}
-              </span>
-            </label>
+        <div className="row row-keep">
+          <Field label="ABV %" id="pf-abv">
             <input
-              id={`pf-${axis.key}`}
-              type="range"
+              id="pf-abv"
+              className="input"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
               min="0"
-              max="10"
-              step="0.5"
-              value={value ?? 5}
-              onChange={(e) => setScore(axis.key, Number(e.target.value))}
-              // Dimmed until touched, so a thumb resting at the midpoint does not
-              // read as a deliberate 5.
-              style={{ width: '100%', accentColor: 'var(--brand)', opacity: value == null ? 0.4 : 1 }}
-              aria-describedby={`pf-${axis.key}-hint`}
-              aria-valuetext={value == null ? 'not scored' : `${value} out of 10`}
+              max="80"
+              value={form.abv}
+              onChange={(e) => set('abv', e.target.value)}
+              enterKeyHint="next"
             />
-            <div className="hint" id={`pf-${axis.key}-hint`}>{axis.hint}</div>
-          </div>
-        );
-      })}
-
-      <hr className="divider" />
-
-      <Field label="Flavours" hint="Tagging keeps your notes searchable a year from now.">
-        <input
-          className="input"
-          value={tagFilter}
-          onChange={(e) => setTagFilter(e.target.value)}
-          placeholder="Filter the list — bourbon, citrus, funk…"
-          style={{ marginBottom: 8 }}
-        />
-        <div className="chips">
-          {visibleTags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              className="chip chip-toggle"
-              aria-pressed={form.tags.includes(tag)}
-              onClick={() => toggleTag(tag)}
+          </Field>
+          <Field label="Serving" id="pf-format">
+            <select
+              id="pf-format"
+              className="select"
+              value={form.servingFormat}
+              onChange={(e) => set('servingFormat', e.target.value)}
             >
-              {tag}
-            </button>
-          ))}
+              {['draft', 'can', 'bottle', 'crowler', 'cask', 'taster'].map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
-      </Field>
+      </FormGroup>
 
-      <Field label="Notes" id="pf-notes">
-        <textarea
-          id="pf-notes"
-          className="textarea"
-          value={form.notes}
-          onChange={(e) => set('notes', e.target.value)}
-          placeholder="What did it actually taste like? Write it rough — you can tidy it after."
-        />
-        {aiEnabled && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={polish}
-            disabled={polishing}
-            style={{ alignSelf: 'flex-start', marginTop: 6 }}
-          >
-            {polishing ? <Spinner /> : '🎩 Tidy these notes'}
-          </button>
-        )}
-      </Field>
+      <FormGroup>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+          <div>
+            <div className="card-title">Score it</div>
+            <div className="hint">
+              Flavour carries the most weight, appearance the least. Axes you never touch stay
+              unscored and are left out of the total.
+            </div>
+          </div>
+          <ScorePill score={score} />
+        </div>
 
-      <div className="row">
-        <Field label="City" id="pf-city">
-          <input id="pf-city" className="input" value={form.city} onChange={(e) => set('city', e.target.value)} />
+        {axes.map((axis) => {
+          const value = form.scores[axis.key];
+          const shown = value ?? 5;
+          return (
+            <div key={axis.key} className="score-row">
+              <label htmlFor={`pf-${axis.key}`} className="score-row-head">
+                <span className="label">
+                  {axis.label} <span className="score-row-weight">· {Math.round(axis.weight * 100)}%</span>
+                </span>
+                <span className="score-row-value">
+                  {value == null ? '—' : Number(value).toFixed(1)}
+                </span>
+              </label>
+              <input
+                id={`pf-${axis.key}`}
+                type="range"
+                className={`slider${value == null ? ' is-unset' : ''}`}
+                min="0"
+                max="10"
+                step="0.5"
+                value={shown}
+                onChange={(e) => setScore(axis.key, Number(e.target.value))}
+                // Dimmed until touched, so a thumb resting at the midpoint does not
+                // read as a deliberate 5.
+                style={{ '--pct': `${(shown / 10) * 100}%` }}
+                aria-describedby={`pf-${axis.key}-hint`}
+                aria-valuetext={value == null ? 'not scored' : `${value} out of 10`}
+              />
+              <div className="hint" id={`pf-${axis.key}-hint`}>{axis.hint}</div>
+            </div>
+          );
+        })}
+      </FormGroup>
+
+      <FormGroup>
+        <Field label="Flavours" hint="Tagging keeps your notes searchable a year from now.">
+          <input
+            className="input"
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            placeholder="Filter the list — bourbon, citrus, funk…"
+            aria-label="Filter flavour tags"
+            autoComplete="off"
+            autoCapitalize="none"
+            enterKeyHint="search"
+            style={{ marginBottom: 10 }}
+          />
+          <div className="chips">
+            {visibleTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="chip chip-toggle"
+                aria-pressed={form.tags.includes(tag)}
+                onClick={() => toggleTag(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         </Field>
-        <Field label="State" id="pf-state">
-          <input id="pf-state" className="input" value={form.state} onChange={(e) => set('state', e.target.value)} />
+      </FormGroup>
+
+      <FormGroup>
+        <Field label="Notes" id="pf-notes">
+          <textarea
+            id="pf-notes"
+            className="textarea"
+            value={form.notes}
+            onChange={(e) => set('notes', e.target.value)}
+            placeholder="What did it actually taste like? Write it rough — you can tidy it after."
+            autoCapitalize="sentences"
+          />
+          {aiEnabled && (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={polish}
+              disabled={polishing}
+              style={{ alignSelf: 'flex-start', marginTop: 6 }}
+            >
+              {polishing ? <Spinner /> : <><SparkleIcon /> Tidy these notes</>}
+            </button>
+          )}
         </Field>
+      </FormGroup>
+
+      <FormGroup>
+        <div className="row row-keep">
+          <Field label="City" id="pf-city">
+            <input id="pf-city" className="input" value={form.city} onChange={(e) => set('city', e.target.value)} autoCapitalize="words" autoComplete="off" enterKeyHint="next" />
+          </Field>
+          <Field label="State" id="pf-state">
+            <input id="pf-state" className="input" value={form.state} onChange={(e) => set('state', e.target.value)} autoCapitalize="characters" autoComplete="off" enterKeyHint="done" />
+          </Field>
+        </div>
         <Field label="Visibility" id="pf-vis">
           <select
             id="pf-vis"
@@ -349,16 +365,16 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
             <option value="private">Keep private</option>
           </select>
         </Field>
-      </div>
+      </FormGroup>
 
       {error && <div style={{ marginBottom: 12 }}><Banner kind="error">{error}</Banner></div>}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" className="btn btn-primary" disabled={busy} style={{ flex: 1 }}>
+      <div className="form-actions">
+        <button type="submit" className="btn btn-primary btn-lg" disabled={busy}>
           {busy ? <Spinner /> : existing ? 'Save changes' : 'Add to journal'}
         </button>
         {onCancel && (
-          <button type="button" className="btn" onClick={onCancel}>
+          <button type="button" className="btn btn-secondary btn-lg" onClick={onCancel}>
             Cancel
           </button>
         )}
@@ -369,6 +385,7 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
         onClose={() => setScanning(false)}
         title="Scan a beer"
         subtitle="Label for the facts, glass for the appearance score"
+        full
       >
         <ScanSheet onApply={applyScan} onClose={() => setScanning(false)} />
       </Sheet>

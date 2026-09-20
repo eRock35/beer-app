@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp, useAsync } from '../store.jsx';
-import { Banner, Empty, ScorePill } from '../components/ui.jsx';
+import { Empty, ErrorState, LoadingList, ScorePill } from '../components/ui.jsx';
+import { PageTitle } from '../components/header.jsx';
+import { BubblesIcon, CheersIcon, MapPinIcon, PlusIcon } from '../components/icons.jsx';
 import { relativeDate, placeLine } from '../lib/format.js';
 
 export function FeedView({ go }) {
   const { user } = useApp();
-  const { data, loading, error, setData } = useAsync(() => api.feed(), []);
+  const { data, loading, error, setData, reload } = useAsync(() => api.feed(), []);
   const [busyId, setBusyId] = useState(null);
   const pours = data?.pours || [];
 
@@ -27,27 +29,40 @@ export function FeedView({ go }) {
     }
   };
 
-  if (loading) {
-    return <div className="stack">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 130 }} />)}</div>;
-  }
-  if (error) return <Banner kind="error">{error}</Banner>;
-
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>The feed</h1>
-          <p>What everyone is drinking. Your own pours show up here when you mark them public.</p>
-        </div>
-        {user && (
-          <button type="button" className="btn btn-primary" onClick={() => go('journal')}>
-            🍺 Log a pour
-          </button>
-        )}
-      </div>
+      <PageTitle
+        eyebrow="Everyone"
+        title="Feed"
+        action={
+          user && (
+            <button type="button" className="btn btn-primary" onClick={() => go('journal')}>
+              <PlusIcon /> Log a pour
+            </button>
+          )
+        }
+      >
+        What everyone is drinking. Your own pours show up here when you mark them public.
+      </PageTitle>
 
-      {!pours.length && (
-        <Empty icon="🍻" title="Quiet in here">
+      {loading && <LoadingList rows={3} height={130} />}
+
+      {error && !loading && (
+        <ErrorState title="The feed did not load" onRetry={reload}>{error}</ErrorState>
+      )}
+
+      {!loading && !error && !pours.length && (
+        <Empty
+          icon={<BubblesIcon />}
+          title="Quiet in here"
+          action={
+            user ? (
+              <button type="button" className="btn btn-primary" onClick={() => go('journal')}>Log a pour</button>
+            ) : (
+              <button type="button" className="btn btn-primary" onClick={() => go('journal')}>Sign in to post</button>
+            )
+          }
+        >
           Nobody has logged a public pour yet. Be the first.
         </Empty>
       )}
@@ -55,47 +70,44 @@ export function FeedView({ go }) {
       <div className="stack">
         {pours.map((pour) => (
           <article key={pour.id} className="card">
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                <div className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
                   {pour.author?.displayName} · {relativeDate(pour.drankAt)}
                 </div>
-                <h3 style={{ margin: '3px 0 2px' }}>{pour.beerName}</h3>
-                <p className="secondary" style={{ margin: 0, fontSize: '0.9rem' }}>
+                <h3 className="card-title" style={{ margin: '2px 0 0' }}>{pour.beerName}</h3>
+                <p className="card-sub">
                   {[pour.brewery, pour.style].filter(Boolean).join(' · ')}
                   {pour.abv ? ` · ${pour.abv}%` : ''}
                 </p>
                 {placeLine(pour.city, pour.state) && (
-                  <p className="muted" style={{ margin: '3px 0 0', fontSize: '0.82rem' }}>
-                    📍 {placeLine(pour.city, pour.state)}
+                  <p className="muted meta-line" style={{ margin: '4px 0 0' }}>
+                    <span><MapPinIcon />{placeLine(pour.city, pour.state)}</span>
                   </p>
                 )}
               </div>
               <ScorePill score={pour.score} />
             </div>
 
-            {pour.notes && (
-              <p className="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: '0.92rem', lineHeight: 1.6 }}>
-                {pour.notes}
-              </p>
-            )}
+            {pour.notes && <p className="card-text">{pour.notes}</p>}
 
             {pour.tags?.length > 0 && (
-              <div className="chips" style={{ marginTop: 12 }}>
+              <div className="chips chips-sm" style={{ marginTop: 12 }}>
                 {pour.tags.slice(0, 8).map((t) => <span className="chip" key={t}>{t}</span>)}
               </div>
             )}
 
-            <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="card-actions">
               <button
                 type="button"
-                className="btn btn-sm"
+                className={`btn btn-sm ${pour.cheered ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => cheer(pour)}
                 disabled={!user || busyId === pour.id}
                 aria-pressed={pour.cheered}
                 title={user ? 'Cheers' : 'Sign in to cheer'}
+                style={{ flex: '0 0 auto' }}
               >
-                🍻 {pour.cheerCount || 0}
+                <CheersIcon /> {pour.cheerCount || 0}
                 {pour.cheered && ' · you'}
               </button>
             </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../store.jsx';
-import { Banner, Field, Spinner } from '../components/ui.jsx';
+import { Banner, Field, FormGroup, Spinner } from '../components/ui.jsx';
+import { GlassIcon } from '../components/icons.jsx';
 
 export function AuthGate({ feature = 'this' }) {
   const { login, register } = useApp();
@@ -26,15 +27,20 @@ export function AuthGate({ feature = 'this' }) {
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: '6vh auto' }}>
-      <div className="card">
-        <h1 style={{ marginBottom: 6 }}>{mode === 'login' ? 'Welcome back' : 'Start your passport'}</h1>
-        <p className="secondary" style={{ fontSize: '0.9rem' }}>
+    <div style={{ maxWidth: 420, margin: '4vh auto 0' }}>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <span className="empty-icon" aria-hidden="true" style={{ marginBottom: 12 }}>
+          <GlassIcon />
+        </span>
+        <h1 className="large-title" style={{ fontSize: 28 }}>{mode === 'login' ? 'Welcome back' : 'Start your passport'}</h1>
+        <p className="secondary" style={{ fontSize: 15, margin: '8px auto 0', maxWidth: '36ch' }}>
           {feature} is yours alone, so it needs an account. Nothing you log is public unless you
           mark a pour public.
         </p>
+      </div>
 
-        <form onSubmit={submit} style={{ marginTop: 18 }}>
+      <form onSubmit={submit}>
+        <FormGroup>
           {mode === 'register' && (
             <Field label="Name" id="displayName">
               <input
@@ -44,6 +50,8 @@ export function AuthGate({ feature = 'this' }) {
                 onChange={set('displayName')}
                 placeholder="What the feed should call you"
                 autoComplete="nickname"
+                autoCapitalize="words"
+                enterKeyHint="next"
               />
             </Field>
           )}
@@ -53,10 +61,15 @@ export function AuthGate({ feature = 'this' }) {
               id="email"
               className="input"
               type="email"
+              inputMode="email"
               required
               value={form.email}
               onChange={set('email')}
-              autoComplete="email"
+              autoComplete={mode === 'login' ? 'username' : 'email'}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="next"
             />
           </Field>
 
@@ -70,29 +83,29 @@ export function AuthGate({ feature = 'this' }) {
               value={form.password}
               onChange={set('password')}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              enterKeyHint="done"
             />
           </Field>
+        </FormGroup>
 
-          {error && <div style={{ marginBottom: 12 }}><Banner kind="error">{error}</Banner></div>}
+        {error && <div style={{ marginBottom: 12 }}><Banner kind="error">{error}</Banner></div>}
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? <Spinner /> : mode === 'login' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
-
-        <hr className="divider" />
-
-        <button
-          type="button"
-          className="btn btn-ghost btn-block btn-sm"
-          onClick={() => {
-            setMode(mode === 'login' ? 'register' : 'login');
-            setError('');
-          }}
-        >
-          {mode === 'login' ? 'No account yet? Create one' : 'Already have an account? Sign in'}
+        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy}>
+          {busy ? <Spinner /> : mode === 'login' ? 'Sign in' : 'Create account'}
         </button>
-      </div>
+      </form>
+
+      <button
+        type="button"
+        className="btn btn-ghost btn-block"
+        style={{ marginTop: 10 }}
+        onClick={() => {
+          setMode(mode === 'login' ? 'register' : 'login');
+          setError('');
+        }}
+      >
+        {mode === 'login' ? 'No account yet? Create one' : 'Already have an account? Sign in'}
+      </button>
     </div>
   );
 }

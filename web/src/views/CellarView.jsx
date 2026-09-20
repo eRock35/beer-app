@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp, useAsync } from '../store.jsx';
-import { Banner, Confirm, Empty, Field, Sheet, Spinner, Stat } from '../components/ui.jsx';
+import { Banner, Confirm, Empty, ErrorState, Field, FormGroup, LoadingList, Sheet, Spinner, Stat, useToast } from '../components/ui.jsx';
+import { PageTitle } from '../components/header.jsx';
+import { AlertIcon, BarrelIcon, ClockIcon, GlassIcon, PlusIcon } from '../components/icons.jsx';
 import { drinkWindowState } from '../lib/format.js';
 
 const EMPTY = {
@@ -11,10 +13,10 @@ const EMPTY = {
 
 export function CellarView() {
   const { reference } = useApp();
-  const { data, loading, reload } = useAsync(() => api.list('cellar'), []);
+  const toast = useToast();
+  const { data, loading, error, reload } = useAsync(() => api.list('cellar'), []);
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState('');
   const bottles = data?.items || [];
 
   const sorted = useMemo(() => {
@@ -38,39 +40,44 @@ export function CellarView() {
       const remaining = Math.max(0, (Number(bottle.quantity) || 1) - 1);
       if (remaining === 0) await api.remove('cellar', bottle.id);
       else await api.update('cellar', bottle.id, { ...bottle, quantity: remaining });
+      toast(remaining === 0 ? `Last ${bottle.beerName} opened — enjoy it` : `${remaining} left`, { kind: 'success' });
       reload();
     } catch (err) {
-      setError(err.message);
+      toast(err.message, { kind: 'error' });
     }
   };
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Cellar</h1>
-          <p>What is put down, and — more usefully — what is about to go past its window.</p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-          🛢️ Put one down
-        </button>
-      </div>
-
-      {error && <div style={{ marginBottom: 16 }}><Banner kind="error">{error}</Banner></div>}
+      <PageTitle
+        eyebrow="What is put down"
+        title="Cellar"
+        action={
+          <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+            <PlusIcon /> Put one down
+          </button>
+        }
+      >
+        What is put down, and — more usefully — what is about to go past its window.
+      </PageTitle>
 
       {bottles.length > 0 && (
-        <div className="grid grid-3" style={{ marginBottom: 20 }}>
-          <Stat value={totals.count} label="Bottles down" note={`${bottles.length} distinct beers`} />
-          <Stat value={totals.drinkNow} label="Drink soon" note="Inside four months of the window closing" />
-          <Stat value={totals.past} label="Past window" note={totals.past ? 'Open them or accept the loss' : 'Nothing overdue'} />
+        <div className="grid grid-stats" style={{ marginBottom: 16, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <Stat value={totals.count} label="Bottles" note={`${bottles.length} distinct`} />
+          <Stat value={totals.drinkNow} label="Drink soon" note="Window closing" />
+          <Stat value={totals.past} label="Past window" note={totals.past ? 'Open or accept' : 'Nothing overdue'} />
         </div>
       )}
 
-      {loading && <div className="skeleton" style={{ height: 160 }} />}
+      {loading && <LoadingList rows={2} height={140} />}
 
-      {!loading && !bottles.length && (
+      {error && !loading && (
+        <ErrorState title="Could not load the cellar" onRetry={reload}>{error}</ErrorState>
+      )}
+
+      {!loading && !error && !bottles.length && (
         <Empty
-          icon="🛢️"
+          icon={<BarrelIcon />}
           title="Nothing ageing"
           action={<button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>Add a bottle</button>}
         >
@@ -84,40 +91,43 @@ export function CellarView() {
           const window = drinkWindowState(bottle);
           return (
             <article key={bottle.id} className="card">
-              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                  <h3 style={{ marginBottom: 2 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                  <h3 className="card-title">
                     {bottle.beerName}
                     {bottle.vintage ? <span className="muted"> · {bottle.vintage}</span> : null}
                   </h3>
-                  <p className="secondary" style={{ margin: 0, fontSize: '0.9rem' }}>
+                  <p className="card-sub">
                     {[bottle.brewery, bottle.style].filter(Boolean).join(' · ')}
                     {bottle.abv ? ` · ${bottle.abv}%` : ''}
                   </p>
-                  <p style={{ margin: '6px 0 0', fontSize: '0.85rem', fontWeight: 600, color: window.tone }}>
-                    {window.key === 'drink-now' && '⏰ '}
-                    {window.key === 'past' && '⚠ '}
+                  <p style={{ margin: '6px 0 0', fontSize: 14, fontWeight: 600, color: window.tone, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    {window.key === 'drink-now' && <ClockIcon size={16} />}
+                    {window.key === 'past' && <AlertIcon size={16} />}
                     {window.label}
                   </p>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="stat-value" style={{ fontSize: '1.4rem' }}>×{bottle.quantity}</div>
-                </div>
+                <div className="num-badge" style={{ flex: '0 0 auto' }}>×{bottle.quantity}</div>
               </div>
 
-              {bottle.notes && (
-                <p className="secondary" style={{ marginTop: 10, marginBottom: 0, fontSize: '0.9rem' }}>{bottle.notes}</p>
-              )}
+              {bottle.notes && <p className="card-text">{bottle.notes}</p>}
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <div className="card-actions">
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => drink(bottle)}>
-                  🍺 Open one
+                  <GlassIcon /> Open one
                 </button>
-                <button type="button" className="btn btn-sm" onClick={() => setEditing(bottle)}>Edit</button>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditing(bottle)}>Edit</button>
                 <Confirm
+                  title={`Remove ${bottle.beerName}?`}
+                  message="It comes out of the cellar without being logged as drunk."
                   onConfirm={async () => {
-                    await api.remove('cellar', bottle.id);
-                    reload();
+                    try {
+                      await api.remove('cellar', bottle.id);
+                      toast('Removed from the cellar', { kind: 'success' });
+                      reload();
+                    } catch (err) {
+                      toast(err.message, { kind: 'error' });
+                    }
                   }}
                 >
                   Remove
@@ -128,13 +138,14 @@ export function CellarView() {
         })}
       </div>
 
-      <Sheet open={adding || Boolean(editing)} onClose={() => { setAdding(false); setEditing(null); }} title={editing ? 'Edit bottle' : 'Put a bottle down'}>
+      <Sheet open={adding || Boolean(editing)} onClose={() => { setAdding(false); setEditing(null); }} title={editing ? 'Edit bottle' : 'Put a bottle down'} full>
         <BottleForm
           styles={reference?.styles || []}
           existing={editing}
           onSaved={() => {
             setAdding(false);
             setEditing(null);
+            toast(editing ? 'Saved' : 'Added to the cellar', { kind: 'success' });
             reload();
           }}
           onCancel={() => { setAdding(false); setEditing(null); }}
@@ -178,55 +189,58 @@ function BottleForm({ styles, existing, onSaved, onCancel }) {
 
   return (
     <form onSubmit={submit}>
-      <div className="row">
+      <FormGroup>
         <Field label="Beer" id="cf-name">
-          <input id="cf-name" className="input" required value={form.beerName} onChange={set('beerName')} />
+          <input id="cf-name" className="input" required value={form.beerName} onChange={set('beerName')} autoCapitalize="words" autoComplete="off" enterKeyHint="next" />
         </Field>
         <Field label="Brewery" id="cf-brewery">
-          <input id="cf-brewery" className="input" value={form.brewery} onChange={set('brewery')} />
+          <input id="cf-brewery" className="input" value={form.brewery} onChange={set('brewery')} autoCapitalize="words" autoComplete="off" enterKeyHint="next" />
         </Field>
-      </div>
-
-      <div className="row">
         <Field label="Style" id="cf-style">
           <select id="cf-style" className="select" value={form.style} onChange={set('style')}>
             {styles.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
           </select>
         </Field>
-        <Field label="ABV %" id="cf-abv">
-          <input id="cf-abv" className="input" type="number" step="0.1" min="0" value={form.abv} onChange={set('abv')} />
-        </Field>
-      </div>
+      </FormGroup>
 
-      <div className="row">
-        <Field label="Vintage" id="cf-vintage">
-          <input id="cf-vintage" className="input" type="number" min="1900" max="2100" value={form.vintage} onChange={set('vintage')} />
-        </Field>
-        <Field label="How many" id="cf-qty">
-          <input id="cf-qty" className="input" type="number" min="0" max="999" value={form.quantity} onChange={set('quantity')} />
-        </Field>
-      </div>
+      <FormGroup>
+        <div className="row row-keep">
+          <Field label="ABV %" id="cf-abv">
+            <input id="cf-abv" className="input" type="number" inputMode="decimal" step="0.1" min="0" value={form.abv} onChange={set('abv')} enterKeyHint="next" />
+          </Field>
+          <Field label="Vintage" id="cf-vintage">
+            <input id="cf-vintage" className="input" type="number" inputMode="numeric" min="1900" max="2100" value={form.vintage} onChange={set('vintage')} enterKeyHint="next" />
+          </Field>
+          <Field label="How many" id="cf-qty">
+            <input id="cf-qty" className="input" type="number" inputMode="numeric" min="0" max="999" value={form.quantity} onChange={set('quantity')} enterKeyHint="next" />
+          </Field>
+        </div>
+      </FormGroup>
 
-      <div className="row">
-        <Field label="Ready from" id="cf-from" hint="When it stops being too young.">
-          <input id="cf-from" className="input" type="date" value={form.drinkFrom} onChange={set('drinkFrom')} />
-        </Field>
-        <Field label="Drink by" id="cf-by" hint="When you would regret waiting longer.">
-          <input id="cf-by" className="input" type="date" value={form.drinkBy} onChange={set('drinkBy')} />
-        </Field>
-      </div>
+      <FormGroup>
+        <div className="row row-keep">
+          <Field label="Ready from" id="cf-from" hint="When it stops being too young.">
+            <input id="cf-from" className="input" type="date" value={form.drinkFrom} onChange={set('drinkFrom')} />
+          </Field>
+          <Field label="Drink by" id="cf-by" hint="When you would regret waiting longer.">
+            <input id="cf-by" className="input" type="date" value={form.drinkBy} onChange={set('drinkBy')} />
+          </Field>
+        </div>
+      </FormGroup>
 
-      <Field label="Notes" id="cf-notes">
-        <textarea id="cf-notes" className="textarea" value={form.notes} onChange={set('notes')} style={{ minHeight: 64 }} />
-      </Field>
+      <FormGroup>
+        <Field label="Notes" id="cf-notes">
+          <textarea id="cf-notes" className="textarea" value={form.notes} onChange={set('notes')} style={{ minHeight: 72 }} autoCapitalize="sentences" />
+        </Field>
+      </FormGroup>
 
       {error && <div style={{ marginBottom: 12 }}><Banner kind="error">{error}</Banner></div>}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>
+      <div className="form-actions">
+        <button type="submit" className="btn btn-primary btn-lg" disabled={busy}>
           {busy ? <Spinner /> : existing ? 'Save' : 'Add to cellar'}
         </button>
-        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn btn-secondary btn-lg" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );

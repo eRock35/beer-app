@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp, useAsync } from '../store.jsx';
-import { Banner, Confirm, Empty, Field, Sheet, Spinner } from '../components/ui.jsx';
+import { Banner, Confirm, Empty, ErrorState, Field, FormGroup, LoadingList, Sheet, Spinner, useToast } from '../components/ui.jsx';
+import { PageTitle } from '../components/header.jsx';
+import { CalendarIcon, MapPinIcon, PlusIcon, SignpostIcon, SparkleIcon } from '../components/icons.jsx';
 import { placeLine } from '../lib/format.js';
 
 /**
@@ -11,33 +13,35 @@ import { placeLine } from '../lib/format.js';
  */
 export function TripsView() {
   const { aiEnabled } = useApp();
-  const { data, loading, reload } = useAsync(() => api.list('trips'), []);
+  const toast = useToast();
+  const { data, loading, error, reload } = useAsync(() => api.list('trips'), []);
   const [planning, setPlanning] = useState(false);
-  const [error, setError] = useState('');
   const trips = data?.items || [];
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>Trips</h1>
-          <p>
-            Give it a city and it finds the breweries, puts them in walking order, and — if the
-            sommelier is on — tells you what to order at each one.
-          </p>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => setPlanning(true)}>
-          ✈️ Plan a trip
-        </button>
-      </div>
+      <PageTitle
+        eyebrow="Crawl planner"
+        title="Trips"
+        action={
+          <button type="button" className="btn btn-primary" onClick={() => setPlanning(true)}>
+            <PlusIcon /> Plan a trip
+          </button>
+        }
+      >
+        Give it a city and it finds the breweries, puts them in walking order, and — if the
+        sommelier is on — tells you what to order at each one.
+      </PageTitle>
 
-      {error && <div style={{ marginBottom: 16 }}><Banner kind="error">{error}</Banner></div>}
+      {loading && <LoadingList rows={2} height={150} />}
 
-      {loading && <div className="skeleton" style={{ height: 160 }} />}
+      {error && !loading && (
+        <ErrorState title="Could not load your trips" onRetry={reload}>{error}</ErrorState>
+      )}
 
-      {!loading && !trips.length && (
+      {!loading && !error && !trips.length && (
         <Empty
-          icon="✈️"
+          icon={<SignpostIcon />}
           title="No trips planned"
           action={
             <button type="button" className="btn btn-primary" onClick={() => setPlanning(true)}>
@@ -52,18 +56,27 @@ export function TripsView() {
       <div className="stack">
         {trips.map((trip) => (
           <article key={trip.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <h3>{trip.title}</h3>
-                <p className="secondary" style={{ margin: '3px 0 0', fontSize: '0.9rem' }}>
-                  {placeLine(trip.city, trip.state)}
-                  {trip.startDate && ` · ${trip.startDate}${trip.endDate ? ` → ${trip.endDate}` : ''}`}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ minWidth: 0 }}>
+                <h3 className="card-title">{trip.title}</h3>
+                <p className="card-sub meta-line">
+                  <span><MapPinIcon />{placeLine(trip.city, trip.state)}</span>
+                  {trip.startDate && (
+                    <span><CalendarIcon />{trip.startDate}{trip.endDate ? ` → ${trip.endDate}` : ''}</span>
+                  )}
                 </p>
               </div>
               <Confirm
+                title={`Delete ${trip.title}?`}
+                message="The route and any itinerary go with it."
                 onConfirm={async () => {
-                  await api.remove('trips', trip.id);
-                  reload();
+                  try {
+                    await api.remove('trips', trip.id);
+                    toast('Trip deleted', { kind: 'success' });
+                    reload();
+                  } catch (err) {
+                    toast(err.message, { kind: 'error' });
+                  }
                 }}
               >
                 Delete
@@ -71,15 +84,16 @@ export function TripsView() {
             </div>
 
             {trip.stops?.length > 0 && (
-              <ol style={{ margin: '14px 0 0', paddingLeft: 20, display: 'grid', gap: 6 }}>
+              <ol className="list-reset" style={{ margin: '12px 0 0', display: 'grid' }}>
                 {trip.stops.map((stop, i) => (
-                  <li key={`${stop.id || stop.name}-${i}`}>
-                    <span style={{ fontWeight: 600 }}>{stop.name}</span>
-                    {stop.walkMinutes != null && (
-                      <span className="muted" style={{ fontSize: '0.84rem' }}>
-                        {' '}· {stop.walkMinutes} min walk
-                      </span>
-                    )}
+                  <li key={`${stop.id || stop.name}-${i}`} style={{ display: 'flex', gap: 12, alignItems: 'baseline', padding: '8px 0', borderTop: i ? '1px solid var(--sep)' : 0 }}>
+                    <span className="muted tabular" style={{ width: 20, fontWeight: 700, fontSize: 14, flex: '0 0 auto' }}>{i + 1}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: 16, display: 'block' }}>{stop.name}</span>
+                      {stop.walkMinutes != null && (
+                        <span className="muted" style={{ fontSize: 13 }}>{stop.walkMinutes} min walk</span>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -88,7 +102,7 @@ export function TripsView() {
             {trip.itinerary && (
               <>
                 <hr className="divider" />
-                <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.65 }} className="secondary">
+                <div className="secondary" style={{ whiteSpace: 'pre-wrap', fontSize: 15, lineHeight: 1.55, userSelect: 'text', WebkitUserSelect: 'text' }}>
                   {trip.itinerary}
                 </div>
               </>
@@ -97,14 +111,15 @@ export function TripsView() {
         ))}
       </div>
 
-      <Sheet open={planning} onClose={() => setPlanning(false)} title="Plan a trip" width={640}>
+      <Sheet open={planning} onClose={() => setPlanning(false)} title="Plan a trip" width={640} full>
         <TripPlanner
           aiEnabled={aiEnabled}
           onSaved={() => {
             setPlanning(false);
+            toast('Trip saved', { kind: 'success' });
             reload();
           }}
-          onError={setError}
+          onError={(message) => toast(message, { kind: 'error' })}
         />
       </Sheet>
     </>
@@ -223,39 +238,47 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
 
       {step === 'search' && (
         <form onSubmit={find}>
-          <Field label="Where is work sending you?" id="trip-city">
-            <input
-              id="trip-city"
-              className="input"
-              required
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Portland, OR"
-            />
-          </Field>
-          <div className="row">
+          <FormGroup>
+            <Field label="Where is work sending you?" id="trip-city">
+              <input
+                id="trip-city"
+                className="input"
+                required
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Portland, OR"
+                autoCapitalize="words"
+                autoComplete="off"
+                enterKeyHint="next"
+              />
+            </Field>
             <Field label="Free evenings" id="trip-nights">
               <input
                 id="trip-nights"
                 className="input"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="14"
                 value={nights}
                 onChange={(e) => setNights(e.target.value)}
+                enterKeyHint="next"
               />
             </Field>
-          </div>
-          <Field label="What are you after?" id="trip-vibe" hint="Optional. Steers the sommelier's picks.">
-            <input
-              id="trip-vibe"
-              className="input"
-              value={vibe}
-              onChange={(e) => setVibe(e.target.value)}
-              placeholder="Lagers and something barrel-aged. No pastry stouts."
-            />
-          </Field>
-          <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+            <Field label="What are you after?" id="trip-vibe" hint="Optional. Steers the sommelier's picks.">
+              <input
+                id="trip-vibe"
+                className="input"
+                value={vibe}
+                onChange={(e) => setVibe(e.target.value)}
+                placeholder="Lagers and something barrel-aged. No pastry stouts."
+                autoCapitalize="sentences"
+                autoComplete="off"
+                enterKeyHint="search"
+              />
+            </Field>
+          </FormGroup>
+          <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy}>
             {busy ? <Spinner /> : 'Find breweries'}
           </button>
         </form>
@@ -263,15 +286,16 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
 
       {step === 'choose' && (
         <div>
-          <p className="secondary" style={{ fontSize: '0.9rem' }}>
+          <p className="secondary" style={{ fontSize: 15 }}>
             {found.length} open breweries near {city}. Pick the ones worth your evenings — three to
             five makes a good crawl.
           </p>
-          <div style={{ maxHeight: 340, overflowY: 'auto', margin: '12px 0', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-            {found.map((b) => (
+          <div className="group-body" style={{ maxHeight: 360, overflowY: 'auto', margin: '12px 0 14px' }}>
+            {found.map((b, i) => (
               <label
                 key={b.id}
-                style={{ display: 'flex', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', alignItems: 'flex-start' }}
+                className="list-row"
+                style={{ cursor: 'pointer', alignItems: 'flex-start' }}
               >
                 <input
                   type="checkbox"
@@ -279,11 +303,11 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
                   onChange={(e) =>
                     setChosen((c) => (e.target.checked ? [...c, b.id] : c.filter((id) => id !== b.id)))
                   }
-                  style={{ marginTop: 4, accentColor: 'var(--brand)' }}
+                  style={{ marginTop: 3, flex: '0 0 auto' }}
                 />
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 600, display: 'block' }}>{b.name}</span>
-                  <span className="secondary" style={{ fontSize: '0.84rem' }}>
+                <span className="row-text">
+                  <span className="row-title" style={{ fontWeight: 600, fontSize: 16 }}>{b.name}</span>
+                  <span className="row-subtitle">
                     {[b.type, placeLine(b.city, b.state)].filter(Boolean).join(' · ')}
                     {b.distanceMiles != null && ` · ${b.distanceMiles.toFixed(1)} mi`}
                   </span>
@@ -291,34 +315,37 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
               </label>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={() => setStep('search')}>Back</button>
-            <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={buildRoute} disabled={busy}>
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary btn-lg" onClick={buildRoute} disabled={busy}>
               {busy ? <Spinner /> : `Order ${chosen.length} stops into a crawl`}
             </button>
+            <button type="button" className="btn btn-secondary btn-lg" onClick={() => setStep('search')}>Back</button>
           </div>
         </div>
       )}
 
       {step === 'route' && route && (
         <div>
-          <div className="card card-tight" style={{ marginBottom: 14 }}>
-            <strong>{route.totalMiles} mi total</strong>
+          <div className="card card-tight" style={{ marginBottom: 14, background: 'var(--fill)', boxShadow: 'none' }}>
+            <strong className="tabular">{route.totalMiles} mi total</strong>
             <span className="secondary"> · about {route.totalWalkMinutes} min on foot · </span>
             <span style={{ color: route.walkable ? 'var(--good)' : 'var(--warning)', fontWeight: 600 }}>
               {route.walkable ? 'walkable' : 'you will want a car or rideshare'}
             </span>
           </div>
 
-          <ol style={{ paddingLeft: 20, display: 'grid', gap: 8, marginTop: 0 }}>
+          <ol className="list-reset" style={{ display: 'grid' }}>
             {route.route.map((stop, i) => (
-              <li key={stop.id || stop.name}>
-                <span style={{ fontWeight: 600 }}>{stop.name}</span>
-                {i > 0 && (
-                  <span className="muted" style={{ fontSize: '0.84rem' }}>
-                    {' '}· {route.legs[i].miles} mi / {route.legs[i].walkMinutes} min from the last stop
-                  </span>
-                )}
+              <li key={stop.id || stop.name} style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: i ? '1px solid var(--sep)' : 0 }}>
+                <span className="muted tabular" style={{ width: 20, fontWeight: 700, flex: '0 0 auto' }}>{i + 1}</span>
+                <span>
+                  <span style={{ fontWeight: 600, display: 'block' }}>{stop.name}</span>
+                  {i > 0 && (
+                    <span className="muted" style={{ fontSize: 13 }}>
+                      {route.legs[i].miles} mi / {route.legs[i].walkMinutes} min from the last stop
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ol>
@@ -326,26 +353,26 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
           {aiEnabled && (
             <button
               type="button"
-              className="btn btn-block"
+              className="btn btn-secondary btn-block btn-lg"
               style={{ marginTop: 16 }}
               onClick={askSommelier}
               disabled={busy}
             >
-              {busy ? <Spinner /> : '🎩 Ask the sommelier what to order'}
+              {busy ? <Spinner /> : <><SparkleIcon /> Ask the sommelier what to order</>}
             </button>
           )}
 
           {itinerary && (
-            <div className="card card-tight" style={{ marginTop: 14, whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: '0.92rem' }}>
+            <div className="card card-tight" style={{ marginTop: 14, whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: 15, background: 'var(--fill)', boxShadow: 'none', userSelect: 'text', WebkitUserSelect: 'text' }}>
               {itinerary}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button type="button" className="btn" onClick={() => setStep('choose')}>Back</button>
-            <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={save} disabled={busy}>
+          <div className="form-actions" style={{ marginTop: 16 }}>
+            <button type="button" className="btn btn-primary btn-lg" onClick={save} disabled={busy}>
               Save this trip
             </button>
+            <button type="button" className="btn btn-secondary btn-lg" onClick={() => setStep('choose')}>Back</button>
           </div>
         </div>
       )}
