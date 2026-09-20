@@ -12,6 +12,7 @@ substitutions:
   _JWT_SECRET_NAME: hopscotch-jwt-secret
   _ANTHROPIC_SECRET_NAME: hopscotch-anthropic-key
   _CRON_SECRET_NAME: hopscotch-cron-secret
+  _DATABASE_ID: hopscotch
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -56,5 +57,5 @@ steps:
       - '--max-instances=4'
       # The sommelier streams, and a long itinerary answer can take a while.
       - '--timeout=300'
-      - '--set-env-vars=NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},APP_VERSION=${SHORT_SHA}'
+      - '--set-env-vars=NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FIRESTORE_DATABASE_ID=${_DATABASE_ID},APP_VERSION=${SHORT_SHA}'
       - '--set-secrets=JWT_SECRET=${_JWT_SECRET_NAME}:latest,ANTHROPIC_API_KEY=${_ANTHROPIC_SECRET_NAME}:latest,CRON_SECRET=${_CRON_SECRET_NAME}:latest'

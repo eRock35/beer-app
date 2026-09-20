@@ -89,8 +89,15 @@ async function main() {
       express.static(dist, {
         // Hashed asset filenames can be cached hard; index.html must not be.
         setHeaders: (res, filePath) => {
-          if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
-          else if (/\.[0-9a-f]{8,}\./.test(filePath)) {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+            return;
+          }
+          // Everything Vite emits into assets/ carries a content hash in its
+          // filename, so those are safe to cache forever. Matching on the hash
+          // itself is fragile — Vite's hashes are base64url, not hex, and are
+          // separated by a dash rather than a dot.
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           }
         },

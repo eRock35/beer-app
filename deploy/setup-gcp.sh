@@ -36,11 +36,14 @@ gcloud artifacts repositories describe "$REPO" --location="$REGION" >/dev/null 2
     --location="$REGION" \
     --description="Hopscotch container images"
 
-echo "==> Firestore (Native mode)"
-if ! gcloud firestore databases describe --database='(default)' >/dev/null 2>&1; then
-  gcloud firestore databases create --location="$REGION" --type=firestore-native
+echo "==> Firestore (a named Native-mode database)"
+# Deliberately not '(default)': that one is frequently in Datastore mode, which
+# this app cannot use, and it may already belong to something else.
+DATABASE="${DATABASE:-hopscotch}"
+if ! gcloud firestore databases describe --database="$DATABASE" >/dev/null 2>&1; then
+  gcloud firestore databases create --database="$DATABASE" --location="$REGION" --type=firestore-native
 else
-  echo "    already exists, leaving it alone"
+  echo "    $DATABASE already exists, leaving it alone"
 fi
 
 echo "==> Secrets"
@@ -80,7 +83,8 @@ cat <<DONE
 
 Setup complete.
 
-  Next:   ./deploy/deploy.sh
+  Next:   PROJECT_ID=$PROJECT_ID DATABASE_ID=${DATABASE:-hopscotch} npm run firestore:indexes
+          ./deploy/deploy.sh
   AI on:  printf '%s' "sk-ant-..." | gcloud secrets versions add hopscotch-anthropic-key --data-file=-
           (then redeploy so Cloud Run picks up the new version)
 

@@ -32,7 +32,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 \
   --max-instances=4 \
   --timeout=300 \
-  --set-env-vars="NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},APP_VERSION=${TAG}" \
+  --set-env-vars="NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FIRESTORE_DATABASE_ID=${DATABASE_ID:-hopscotch},APP_VERSION=${TAG}" \
   --set-secrets="JWT_SECRET=hopscotch-jwt-secret:latest,ANTHROPIC_API_KEY=hopscotch-anthropic-key:latest,CRON_SECRET=hopscotch-cron-secret:latest"
 
 URL="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format='value(status.url)')"

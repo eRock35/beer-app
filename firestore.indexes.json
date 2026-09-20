@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Composite indexes Hopscotch needs in Firestore. Any query that filters on",
+    "one field and orders by another requires one; Firestore rejects the query",
+    "outright rather than scanning, which is why these are not optional.",
+    "The SQLite driver needs none of this, so these only ever show up in a",
+    "deployed environment. Collection ids carry the FIRESTORE_PREFIX.",
+    "Apply with: node deploy/firestore-indexes.mjs"
+  ],
+  "indexes": [
+    { "collectionGroup": "pours", "fields": [["userId", "ASCENDING"], ["drankAt", "DESCENDING"]] },
+    { "collectionGroup": "pours", "fields": [["visibility", "ASCENDING"], ["drankAt", "DESCENDING"]] },
+    { "collectionGroup": "cellar", "fields": [["userId", "ASCENDING"], ["createdAt", "DESCENDING"]] },
+    { "collectionGroup": "wishlist", "fields": [["userId", "ASCENDING"], ["createdAt", "DESCENDING"]] },
+    { "collectionGroup": "trips", "fields": [["userId", "ASCENDING"], ["createdAt", "DESCENDING"]] },
+    { "collectionGroup": "comments", "fields": [["pourId", "ASCENDING"], ["createdAt", "ASCENDING"]] },
+    { "collectionGroup": "dispatch_watches", "fields": [["userId", "ASCENDING"], ["createdAt", "DESCENDING"]] },
+    { "collectionGroup": "dispatch_finds", "fields": [["userId", "ASCENDING"], ["foundAt", "DESCENDING"]] }
+  ]
+}

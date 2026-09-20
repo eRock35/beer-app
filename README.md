@@ -107,6 +107,18 @@ it is Firestore, because Cloud Run's container disk is ephemeral and SQLite
 there would quietly lose every pour on redeploy. Switching is one environment
 variable.
 
+Two things the SQLite driver will not teach you, both of which only appear once
+you are running on Firestore:
+
+- **A project's `(default)` database is often in Datastore mode**, which this app
+  cannot talk to. Set `FIRESTORE_DATABASE_ID` to a Native-mode database.
+  `/api/health` reports which one it is using.
+- **Composite indexes are mandatory.** Firestore rejects any query that filters
+  on one field and orders by another unless a matching index exists — it does
+  not fall back to a scan. They are declared in `firestore.indexes.json` and
+  applied with `npm run firestore:indexes`. Run that before first use, or the
+  feed and journal will return 500s.
+
 **Domain logic is pure and separate.** Scoring, badge derivation, the style
 taxonomy and the crawl planner have no I/O and no framework, which is why they
 can be tested directly and why the AI prompts can reuse the same route ordering
@@ -220,6 +232,13 @@ account Datastore and Secret Manager access:
 ```bash
 gcloud auth login                       # or activate-service-account with a key
 PROJECT_ID=your-project ./deploy/setup-gcp.sh
+```
+
+Create the composite indexes (once per database — the app's list queries fail
+without them):
+
+```bash
+PROJECT_ID=your-project DATABASE_ID=hopscotch npm run firestore:indexes
 ```
 
 Then, for every deploy:
