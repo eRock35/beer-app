@@ -172,10 +172,17 @@ dispatchRouter.post(
     if (!config.aiEnabled) throw new HttpError(503, 'The sommelier is off, so there is nothing to scan with.');
 
     const store = getStore();
-    const watches = await store.query('dispatch_watches', {
+    const all = await store.query('dispatch_watches', {
       where: [['active', '==', true]],
       limit: 200,
     });
+
+    // Oldest-scanned first, so a capped sweep works its way round rather than
+    // repeatedly scanning the same few watches and starving the rest.
+    const ordered = [...all].sort((a, b) => (a.lastScanAt || '').localeCompare(b.lastScanAt || ''));
+    const cap = config.dispatchMaxWatchesPerSweep;
+    const watches = ordered.slice(0, cap);
+    const deferred = ordered.length - watches.length;
 
     const report = [];
     for (const watch of watches) {
@@ -192,7 +199,10 @@ dispatchRouter.post(
       }
     }
 
-    res.json({ scanned: watches.length, report });
+    if (deferred > 0) {
+      console.warn(`[hopscotch] dispatch sweep capped at ${cap}; ${deferred} watch(es) deferred`);
+    }
+    res.json({ scanned: watches.length, deferred, cap, report });
   })
 );
 

@@ -64,6 +64,10 @@ export const config = {
   // Shared secret for the scheduled dispatch sweep. Unset means the endpoint
   // refuses every caller, which is the right default.
   cronSecret: process.env.CRON_SECRET?.trim() || '',
+  // The scheduled sweep runs with no user to bill, so the per-user daily cap
+  // does not apply to it. This is the only thing bounding what one firing can
+  // spend, so it is a hard limit rather than a suggestion.
+  dispatchMaxWatchesPerSweep: Number(process.env.DISPATCH_MAX_WATCHES_PER_SWEEP || 25),
 
   allowRegistration: bool(process.env.ALLOW_REGISTRATION, true),
   // When set, only these emails may register. Handy for a personal deployment.

@@ -220,6 +220,14 @@ gcloud scheduler jobs create http hopscotch-dispatch \
 
 One failing watch is logged and skipped rather than aborting the sweep.
 
+The sweep runs with no user to bill, so the per-user daily cap does not apply to
+it. `DISPATCH_MAX_WATCHES_PER_SWEEP` (default 25) is what bounds the cost of a
+single firing instead; watches are taken oldest-scanned first, so a capped sweep
+works its way round rather than starving the same ones every week.
+
+Note that the sweep does not notify anyone. New finds accumulate in the Dispatch
+tab for the next time you open it — there is no email or push channel.
+
 Model defaults to `claude-opus-5` with adaptive thinking; override with
 `ANTHROPIC_MODEL`.
 
