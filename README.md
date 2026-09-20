@@ -2,6 +2,8 @@
 
 **A craft beer passport for people who travel and care what is in the glass.**
 
+**Live:** <https://hopscotch-u4h4ftn3fa-uc.a.run.app>
+
 You land somewhere for work on a Tuesday. You have two free evenings, no idea
 what is good locally, and a phone. Hopscotch finds the breweries, puts the good
 ones in walking order, and remembers what you thought of everything you drank —
