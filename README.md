@@ -274,6 +274,13 @@ PROJECT_ID=your-project ./deploy/deploy.sh
 authenticates through the Cloud Run runtime service account via Application
 Default Credentials, so no key file ships anywhere.
 
+On Erik's deployment that runtime account is `hopscotch-run@...`, and it is
+scoped: `datastore.user` conditioned to the `hopscotch` database only, plus
+`secretAccessor` on the three secrets this service mounts. **Adding a secret
+or a second database means binding it to that account**, or the next revision
+will not start — Cloud Run resolves secret env vars before it reports a
+revision ready.
+
 ### Locking it down to just you
 
 ```bash
