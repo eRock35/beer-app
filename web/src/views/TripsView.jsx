@@ -12,9 +12,11 @@ import { placeLine } from '../lib/format.js';
  * everything within fifty miles.
  */
 export function TripsView() {
-  const { aiEnabled } = useApp();
+  const { aiEnabled, user } = useApp();
   const toast = useToast();
-  const { data, loading, error, reload } = useAsync(() => api.list('trips'), []);
+  // Signed out there is nothing to list and no point asking - the planner
+  // below works without an account.
+  const { data, loading, error, reload } = useAsync(() => api.list('trips'), [user], { enabled: Boolean(user) });
   const [planning, setPlanning] = useState(false);
   const trips = data?.items || [];
 
@@ -49,7 +51,9 @@ export function TripsView() {
             </button>
           }
         >
-          Next time work sends you somewhere, plan the crawl before you land.
+          {user
+            ? 'Next time work sends you somewhere, plan the crawl before you land.'
+            : 'Plan a crawl right here. Sign in when you want to keep it.'}
         </Empty>
       )}
 
@@ -113,6 +117,7 @@ export function TripsView() {
 
       <Sheet open={planning} onClose={() => setPlanning(false)} title="Plan a trip" width={640} full>
         <TripPlanner
+          user={user}
           aiEnabled={aiEnabled}
           onSaved={() => {
             setPlanning(false);
@@ -126,7 +131,7 @@ export function TripsView() {
   );
 }
 
-function TripPlanner({ aiEnabled, onSaved, onError }) {
+function TripPlanner({ user, aiEnabled, onSaved, onError }) {
   const [step, setStep] = useState('search');
   const [city, setCity] = useState('');
   const [nights, setNights] = useState(2);
@@ -369,9 +374,13 @@ function TripPlanner({ aiEnabled, onSaved, onError }) {
           )}
 
           <div className="form-actions" style={{ marginTop: 16 }}>
-            <button type="button" className="btn btn-primary btn-lg" onClick={save} disabled={busy}>
-              Save this trip
-            </button>
+            {user ? (
+              <button type="button" className="btn btn-primary btn-lg" onClick={save} disabled={busy}>
+                Save this trip
+              </button>
+            ) : (
+              <p className="secondary" style={{ margin: '0 0 10px', fontSize: 15 }}>Sign in to keep this crawl on your phone.</p>
+            )}
             <button type="button" className="btn btn-secondary btn-lg" onClick={() => setStep('choose')}>Back</button>
           </div>
         </div>

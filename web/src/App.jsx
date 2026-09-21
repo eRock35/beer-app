@@ -34,7 +34,10 @@ const TABS = [
   { id: 'map', label: 'Find', Icon: MapPinIcon, view: MapView, public: true },
   { id: 'journal', label: 'Journal', Icon: BookIcon, view: JournalView },
   { id: 'passport', label: 'Passport', Icon: TicketIcon, view: PassportView },
-  { id: 'trips', label: 'Trips', Icon: SignpostIcon, view: TripsView },
+  // Planning a crawl needs no account - only keeping one does - so a visitor
+  // can try the thing the app is for before signing up. The view hides Save
+  // until they do.
+  { id: 'trips', label: 'Trips', Icon: SignpostIcon, view: TripsView, public: true },
   { id: 'cellar', label: 'Cellar', Icon: BarrelIcon, view: CellarView, more: true },
   { id: 'feed', label: 'Feed', Icon: BubblesIcon, view: FeedView, public: true, more: true },
   { id: 'dispatch', label: 'Dispatch', Icon: AntennaIcon, view: DispatchView, more: true },
