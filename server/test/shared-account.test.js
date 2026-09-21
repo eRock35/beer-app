@@ -80,7 +80,7 @@ test('a shared session signs you in, with no Hopscotch account', async () => {
   const body = await res.json();
   assert.equal(body.user?.email, 'owner@example.com', 'the address is normalised');
   assert.equal(body.sharedAccount, true);
-  assert.equal(body.accountUrl, 'https://strongtechnicalconsulting.com/account');
+  assert.equal(body.accountUrl, 'https://acct.strongtechnicalconsulting.com');
 });
 
 test('...and the same person is the same row, not a new one each visit', async () => {

@@ -47,8 +47,10 @@ import { newId } from './lib/ids.js';
 const COOKIE = 'stc_session';
 const USERS = 'users';
 
-/** Where the shared account is managed: password, passkeys, leaving. */
-export const ACCOUNT_URL = 'https://strongtechnicalconsulting.com/account';
+/** Where the shared account is managed: password, passkeys, leaving. The
+ *  subdomain is the page - `/account` on the apex is an alias that still
+ *  works, so an older link in someone's history is not broken. */
+export const ACCOUNT_URL = 'https://acct.strongtechnicalconsulting.com';
 
 /** Who to ask. Overridable so a test can point it at a local stand-in, and
  *  emptyable so a deployment can turn shared sign-in off outright. */
