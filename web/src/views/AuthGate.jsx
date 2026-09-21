@@ -4,7 +4,7 @@ import { Banner, Field, FormGroup, Spinner } from '../components/ui.jsx';
 import { GlassIcon } from '../components/icons.jsx';
 
 export function AuthGate({ feature = 'this' }) {
-  const { login, register } = useApp();
+  const { login, register, account } = useApp();
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ email: '', password: '', displayName: '' });
   const [error, setError] = useState('');
@@ -106,6 +106,17 @@ export function AuthGate({ feature = 'this' }) {
       >
         {mode === 'login' ? 'No account yet? Create one' : 'Already have an account? Sign in'}
       </button>
+
+      {/* The other four apps share one account. Someone who already has it
+          does not need a second one here - they need to be told that, on the
+          screen that is otherwise asking them to make one. */}
+      {account.sharedSignIn && account.accountUrl && (
+        <p className="muted" style={{ fontSize: 13, marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
+          Already use the other apps on this domain?{' '}
+          <a href={account.accountUrl}>Sign in with that account</a> and come back — the
+          same password and Face ID work here.
+        </p>
+      )}
     </div>
   );
 }

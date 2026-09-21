@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { getStore } from './store/index.js';
 import { unauthorized } from './lib/http.js';
+import { userFromSharedSession } from './shared-identity.js';
 
 export async function hashPassword(plain) {
   return bcrypt.hash(plain, 12);
@@ -39,16 +40,41 @@ function readToken(req) {
   return req.cookies?.[config.cookieName] || null;
 }
 
-/** Populates req.user when a valid session exists. Never rejects. */
+/**
+ * Populates req.user when a valid session exists. Never rejects.
+ *
+ * Two doors. This app's own JWT is tried first because it is the one every
+ * existing account uses and the one that works with no extra configuration;
+ * the shared domain account is tried second, and only does anything on a
+ * deployment wired for it. Second rather than first on purpose: an account
+ * already signed in here must not change identity because a sibling app's
+ * cookie happens to be in the same jar.
+ */
 export async function attachUser(req, _res, next) {
   try {
     const token = readToken(req);
-    if (!token) return next();
-    const payload = jwt.verify(token, config.jwtSecret);
-    const user = await getStore().get('users', payload.sub);
-    if (user) req.user = user;
+    if (token) {
+      const payload = jwt.verify(token, config.jwtSecret);
+      const user = await getStore().get('users', payload.sub);
+      if (user) {
+        req.user = user;
+        return next();
+      }
+    }
   } catch {
-    // An expired or forged token is simply an anonymous request.
+    // An expired or forged token is simply an anonymous request - fall through
+    // to the shared account rather than giving up here.
+  }
+  try {
+    const shared = await userFromSharedSession(req);
+    if (shared) {
+      req.user = shared;
+      req.viaSharedAccount = true;
+    }
+  } catch (err) {
+    // The identity database being unreachable must not take Hopscotch down
+    // with it; it just means no shared sign-in on this request.
+    console.error('[auth] shared account lookup failed', err.message);
   }
   next();
 }

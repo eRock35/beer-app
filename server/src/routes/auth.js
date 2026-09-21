@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { getStore } from '../store/index.js';
 import { newId } from '../lib/ids.js';
 import { badRequest, HttpError, parse, wrap } from '../lib/http.js';
+import { clearSharedSessionCookie, sharedSignInEnabled, ACCOUNT_URL } from '../shared-identity.js';
 import {
   checkPassword,
   clearSessionCookie,
@@ -73,13 +74,29 @@ authRouter.post(
   })
 );
 
-authRouter.post('/logout', (_req, res) => {
+authRouter.post('/logout', (req, res) => {
   clearSessionCookie(res);
-  res.json({ ok: true });
+  // Signed in on the shared domain account? Then this app's own cookie is not
+  // what is holding the session open, and clearing it alone would leave
+  // someone pressing "sign out" and staying signed in. Sign them out of the
+  // domain, which is what they asked for by the door they came through.
+  if (req.viaSharedAccount) clearSharedSessionCookie(req, res);
+  res.json({ ok: true, signedOutEverywhere: Boolean(req.viaSharedAccount) });
 });
 
 authRouter.get('/me', (req, res) => {
-  res.json({ user: publicUser(req.user) });
+  res.json({
+    user: publicUser(req.user),
+    // Told to a signed-OUT visitor too: it is the difference between "make an
+    // account" and "you already have one, it is the same one as the other
+    // apps". Only true on a deployment actually wired for it.
+    sharedSignIn: sharedSignInEnabled(),
+    // So the profile screen can point at the one page that owns the password
+    // and the passkeys, rather than offering to change a password this app
+    // does not hold.
+    sharedAccount: Boolean(req.viaSharedAccount),
+    accountUrl: sharedSignInEnabled() ? ACCOUNT_URL : null,
+  });
 });
 
 const profilePatch = z.object({

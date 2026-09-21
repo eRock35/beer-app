@@ -11,7 +11,7 @@ const THEME_OPTIONS = [
 ];
 
 export function AccountView({ onLogout, go }) {
-  const { user, saveProfile, aiEnabled, theme, setTheme } = useApp();
+  const { user, account, saveProfile, aiEnabled, theme, setTheme } = useApp();
   const { toast, confirm } = useFeedback();
   const [form, setForm] = useState({
     displayName: user.displayName || '',
@@ -115,14 +115,39 @@ export function AccountView({ onLogout, go }) {
         <Row icon={<SparkleIcon />} title="Claude sommelier" trailing={aiEnabled ? 'On' : 'Off'} />
       </Group>
 
-      <Group title="Session" footer={`Signed in as ${user.email}.`}>
+      <Group
+        title="Session"
+        footer={
+          account.sharedAccount
+            ? `Signed in as ${user.email} on the account you use across every app here. Your password and Face ID are managed in one place, not in Hopscotch.`
+            : `Signed in as ${user.email}.`
+        }
+      >
+        {/* Only when this session actually came in on the shared account. An
+            account local to Hopscotch has nothing to manage over there, and
+            sending it anyway would be a dead end. */}
+        {account.sharedAccount && account.accountUrl && (
+          <Row
+            icon={<SparkleIcon />}
+            title="Manage your account"
+            trailing="Password, Face ID"
+            onClick={() => { window.location.href = account.accountUrl; }}
+          />
+        )}
         <Row
           icon={<SignOutIcon />}
           title="Sign out"
           destructive
           chevron={false}
           onClick={async () => {
-            const ok = await confirm({ title: 'Sign out?', message: 'Your journal stays on the server; you just sign back in.', action: 'Sign out', destructive: true });
+            const ok = await confirm({
+              title: 'Sign out?',
+              message: account.sharedAccount
+                ? 'This signs you out of every app on this domain, since that is how you signed in. Your journal stays on the server.'
+                : 'Your journal stays on the server; you just sign back in.',
+              action: 'Sign out',
+              destructive: true,
+            });
             if (!ok) return;
             await onLogout();
             go('map');

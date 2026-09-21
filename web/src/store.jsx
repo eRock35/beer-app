@@ -21,6 +21,10 @@ function applyTheme(theme) {
 
 export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
+  // What the server says about the shared domain account: whether this
+  // deployment honours it, where it is managed, and whether THIS session came
+  // in through it.
+  const [account, setAccount] = useState({ sharedSignIn: false, sharedAccount: false, accountUrl: null });
   const [reference, setReference] = useState(null);
   const [booting, setBooting] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'system');
@@ -40,6 +44,11 @@ export function AppProvider({ children }) {
         ]);
         if (cancelled) return;
         setUser(me.user);
+        setAccount({
+          sharedSignIn: Boolean(me.sharedSignIn),
+          sharedAccount: Boolean(me.sharedAccount),
+          accountUrl: me.accountUrl || null,
+        });
         setReference(ref);
       } catch {
         // A failed boot still renders the app; individual views surface errors.
@@ -78,6 +87,7 @@ export function AppProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      account,
       reference,
       booting,
       theme,
@@ -88,7 +98,7 @@ export function AppProvider({ children }) {
       saveProfile,
       aiEnabled: Boolean(reference?.aiEnabled),
     }),
-    [user, reference, booting, theme, login, register, logout, saveProfile]
+    [user, account, reference, booting, theme, login, register, logout, saveProfile]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
