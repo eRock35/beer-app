@@ -52,6 +52,7 @@ export const api = {
   pour: (id) => request(`/pours/${id}`),
 
   passport: () => request('/passport'),
+  samplePassport: () => request('/passport/sample'),
 
   shareTrip: (id) => request(`/trips/${id}/share`, { method: 'POST' }),
   sharedCrawl: (shareId) => request(`/shared-crawl/${shareId}`),

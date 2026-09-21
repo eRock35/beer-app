@@ -134,3 +134,15 @@ test('an unknown link is a 404', async () => {
   const r = await fetch(`${B}/api/shared-crawl/s_nope`);
   assert.equal(r.status, 404);
 });
+
+test('the sample passport needs no account, and the real one still does', async () => {
+  const r = await fetch(`${B}/api/passport/sample`);
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.sample, true);
+  assert.ok(body.stats.total >= 10);
+  assert.ok(body.earnedCount > 0);
+  assert.equal(body.timeline.length >= 3, true);
+
+  assert.equal((await fetch(`${B}/api/passport`)).status, 401);
+});

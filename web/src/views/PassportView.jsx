@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAsync } from '../store.jsx';
-import { Empty, ErrorState, ScorePill, Stat } from '../components/ui.jsx';
+import { Banner, Empty, ErrorState, ScorePill, Stat } from '../components/ui.jsx';
 import { PageTitle } from '../components/header.jsx';
 import { CheckIcon, MapPinIcon, TicketIcon } from '../components/icons.jsx';
 import { PalateRadar, ScoreTimeline, StyleBars } from '../components/charts.jsx';
@@ -9,6 +9,11 @@ import { PalateRadar, ScoreTimeline, StyleBars } from '../components/charts.jsx'
 export function PassportView({ go }) {
   const { data, loading, error, reload } = useAsync(() => api.passport(), []);
   const [showTable, setShowTable] = useState(false);
+  // The worked example, loaded on request. It replaces what is drawn below
+  // rather than sitting beside it, because half a real passport next to half a
+  // fake one is the worst of both.
+  const [sample, setSample] = useState(null);
+  const [sampleError, setSampleError] = useState('');
 
   if (loading) {
     return (
@@ -32,7 +37,8 @@ export function PassportView({ go }) {
     );
   }
 
-  const { badges, earnedCount, stats, palate, families, topPours, timeline } = data;
+  const shown = sample || data;
+  const { badges, earnedCount, stats, palate, families, topPours, timeline } = shown;
 
   if (!stats.total) {
     return (
@@ -42,13 +48,31 @@ export function PassportView({ go }) {
           icon={<TicketIcon />}
           title="Your passport is blank"
           action={
-            <button type="button" className="btn btn-primary" onClick={() => go('journal')}>
-              Log your first pour
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button type="button" className="btn btn-primary" onClick={() => go('journal')}>
+                Log your first pour
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={async () => {
+                  setSampleError('');
+                  try {
+                    setSample(await api.samplePassport());
+                  } catch (err) {
+                    setSampleError(err.message);
+                  }
+                }}
+              >
+                Show me an example
+              </button>
+            </div>
           }
         >
           Log a few beers and this fills up with badges, the states you have drunk in, and the
-          shape of your palate.
+          shape of your palate. It takes about a dozen pours before the radar and the trend say
+          anything — so have a look at someone else&rsquo;s first.
+          {sampleError && <span className="muted"> ({sampleError})</span>}
         </Empty>
       </>
     );
@@ -59,7 +83,17 @@ export function PassportView({ go }) {
 
   return (
     <div className="stack">
-      <PageTitle eyebrow="Your record" title="Passport" className="page-head-flush">
+      {sample && (
+        <Banner kind="info">
+          This is {sample.by}&rsquo;s passport, not yours — a worked example so you can see what
+          fills in.{' '}
+          <button type="button" className="btn btn-sm" style={{ marginLeft: 6 }} onClick={() => setSample(null)}>
+            Back to mine
+          </button>
+        </Banner>
+      )}
+
+      <PageTitle eyebrow={sample ? 'An example' : 'Your record'} title="Passport" className="page-head-flush">
         {stats.total} beers, {stats.breweries} breweries, {stats.states.length}{' '}
         {stats.states.length === 1 ? 'state' : 'states'}. {earnedCount} of {badges.length} badges earned.
       </PageTitle>
@@ -80,7 +114,16 @@ export function PassportView({ go }) {
         <Stat
           value={stats.longestStreak}
           label="Longest streak"
-          note={stats.longestStreak > 1 ? 'consecutive days logging' : 'days in a row'}
+          // "1 / Longest streak / days in a row" reads as "1 days". The one-day
+          // case is not a streak yet, and saying so is more useful than a
+          // plural that does not agree.
+          note={
+            stats.longestStreak > 1
+              ? 'consecutive days logging'
+              : stats.longestStreak === 1
+                ? 'day — two running starts a streak'
+                : 'nothing logged yet'
+          }
         />
       </div>
 
