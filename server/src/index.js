@@ -12,7 +12,7 @@ import { HttpError } from './lib/http.js';
 import { authRouter } from './routes/auth.js';
 import { breweryRouter } from './routes/breweries.js';
 import { pourRouter } from './routes/pours.js';
-import { cellarRouter, tripRouter, wishlistRouter } from './routes/collections.js';
+import { cellarRouter, sharedCrawlRouter, tripRouter, wishlistRouter } from './routes/collections.js';
 import { passportRouter } from './routes/passport.js';
 import { aiRouter } from './routes/ai.js';
 import { dispatchRouter } from './routes/dispatch.js';
@@ -76,6 +76,9 @@ async function main() {
   app.use('/api/wishlist', wishlistRouter);
   app.use('/api/cellar', cellarRouter);
   app.use('/api/trips', tripRouter);
+  // Public on purpose: a shared crawl is a link you hand to someone who has
+  // no account here. It is a frozen copy, so it exposes no live document.
+  app.use('/api/shared-crawl', sharedCrawlRouter);
   app.use('/api/passport', passportRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/dispatch', dispatchRouter);
@@ -128,7 +131,7 @@ async function main() {
     });
   });
 
-  app.listen(config.port, config.host, () => {
+  return app.listen(config.port, config.host, () => {
     console.log(
       `[hopscotch] listening on http://${config.host}:${config.port} ` +
         `(store=${config.dbDriver}, ai=${config.aiEnabled ? 'on' : 'off'})`
@@ -139,7 +142,14 @@ async function main() {
   });
 }
 
-main().catch((err) => {
+/**
+ * Importing this module starts the server - that is how `npm start` runs it.
+ * The bound server is exported as a promise so a test can close it afterwards;
+ * without a handle to close, a test run never exits.
+ */
+export const started = main();
+
+started.catch((err) => {
   console.error('[hopscotch] failed to start:', err);
   process.exit(1);
 });

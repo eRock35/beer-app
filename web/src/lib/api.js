@@ -53,6 +53,9 @@ export const api = {
 
   passport: () => request('/passport'),
 
+  shareTrip: (id) => request(`/trips/${id}/share`, { method: 'POST' }),
+  sharedCrawl: (shareId) => request(`/shared-crawl/${shareId}`),
+
   list: (kind) => request(`/${kind}`),
   add: (kind, body) => request(`/${kind}`, { method: 'POST', body }),
   update: (kind, id, body) => request(`/${kind}/${id}`, { method: 'PATCH', body }),

@@ -29,6 +29,7 @@ import { SommelierView } from './views/SommelierView.jsx';
 import { DispatchView } from './views/DispatchView.jsx';
 import { AccountView } from './views/AccountView.jsx';
 import { AuthGate } from './views/AuthGate.jsx';
+import { SharedCrawlView, sharedCrawlId } from './views/SharedCrawlView.jsx';
 
 const TABS = [
   { id: 'map', label: 'Find', Icon: MapPinIcon, view: MapView, public: true },
@@ -71,9 +72,13 @@ const THEME_OPTIONS = [
 ];
 
 export function App() {
+  // /c/<id> is a crawl someone sent. It is the one path outside the hash
+  // router, and it renders on its own rather than inside the tab shell -
+  // whoever followed the link has no account and came to read one thing.
+  const shared = sharedCrawlId();
   return (
     <FeedbackProvider>
-      <Shell />
+      {shared ? <SharedCrawlView shareId={shared} /> : <Shell />}
     </FeedbackProvider>
   );
 }

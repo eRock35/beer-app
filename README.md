@@ -44,7 +44,9 @@ them instead of stranding them.
 open breweries, you pick the ones worth your time, and it orders them into a
 crawl using nearest-neighbour plus 2-opt, with walking distances and a verdict
 on whether you need a car. With the sommelier switched on it will also tell you
-what to order at each stop.
+what to order at each stop. **Share** hands the whole thing to whoever is
+meeting you as a link that needs no account — a frozen copy, so ticking stops
+off afterwards does not rewrite what you already sent.
 
 **Cellar** — What is put down, and more usefully what is about to fall out of
 its drink window. Sorted so anything urgent floats to the top.

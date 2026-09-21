@@ -70,6 +70,8 @@ export function TripsView() {
                   )}
                 </p>
               </div>
+              <div style={{ display: 'flex', gap: 8, flex: '0 0 auto' }}>
+              <ShareTrip trip={trip} />
               <Confirm
                 title={`Delete ${trip.title}?`}
                 message="The route and any itinerary go with it."
@@ -85,7 +87,16 @@ export function TripsView() {
               >
                 Delete
               </Confirm>
+              </div>
             </div>
+
+            {trip.walkable != null && (
+              <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+                {trip.walkable ? 'Walkable' : 'Car between stops'}
+                {trip.totalMiles != null ? ` · ${trip.totalMiles} miles` : ''}
+                {trip.totalWalkMinutes != null ? ` · ${trip.totalWalkMinutes} min on foot` : ''}
+              </p>
+            )}
 
             {trip.stops?.length > 0 && (
               <ol className="list-reset" style={{ margin: '12px 0 0', display: 'grid' }}>
@@ -128,6 +139,50 @@ export function TripsView() {
         />
       </Sheet>
     </>
+  );
+}
+
+/**
+ * Hand a crawl to someone who is not in the app.
+ *
+ * The link is a frozen copy made server-side, so ticking a stop off later - or
+ * deleting the trip - does not rewrite what was already sent.
+ */
+function ShareTrip({ trip }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const share = async () => {
+    setBusy(true);
+    try {
+      const { url } = await api.shareTrip(trip.id);
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: trip.title, url });
+          return;
+        } catch (err) {
+          // A cancelled share sheet is not a failure - don't quietly do
+          // something else with a link they just decided not to send.
+          if (err?.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied', { kind: 'success' });
+      } catch {
+        toast(url);
+      }
+    } catch (err) {
+      toast(err.message, { kind: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button type="button" className="btn btn-sm" onClick={share} disabled={busy}>
+      {busy ? 'Sharing…' : 'Share'}
+    </button>
   );
 }
 
@@ -226,6 +281,9 @@ function TripPlanner({ user, aiEnabled, onSaved, onError }) {
           done: false,
           walkMinutes: route.legs[i]?.walkMinutes ?? null,
         })),
+        totalMiles: route.totalMiles ?? null,
+        totalWalkMinutes: route.totalWalkMinutes ?? null,
+        walkable: route.walkable ?? null,
         itinerary,
         notes: vibe,
       });

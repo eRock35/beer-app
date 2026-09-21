@@ -12,6 +12,7 @@ export const COLLECTIONS = [
   'wishlist',
   'cellar',
   'trips',
+  'shared_crawls',
   'follows',
   'ai_usage',
   'dispatch_watches',
