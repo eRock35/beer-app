@@ -59,13 +59,14 @@ create_secret() {
 
 create_secret hopscotch-jwt-secret "$(openssl rand -base64 48)"
 
-# The Anthropic key is optional. Without it the app runs fine and the sommelier
-# simply reports itself as switched off. A placeholder keeps the deploy's
-# --set-secrets reference valid either way.
-create_secret hopscotch-anthropic-key "${ANTHROPIC_API_KEY:-}"
+# The Anthropic key and the cron secret use the names shared by the other apps
+# on this project, so on a project that already has them nothing is created.
+# The key is optional: without it the app runs fine and the sommelier simply
+# reports itself as switched off. A placeholder keeps --set-secrets valid.
+create_secret anthropic-api-key "${ANTHROPIC_API_KEY:-}"
 
 # Guards the scheduled Dispatch sweep, which runs without a user session.
-create_secret hopscotch-cron-secret "$(openssl rand -hex 32)"
+create_secret cron-secret "$(openssl rand -hex 32)"
 
 echo "==> Granting the Cloud Run runtime service account what it needs"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
@@ -85,12 +86,12 @@ Setup complete.
 
   Next:   PROJECT_ID=$PROJECT_ID DATABASE_ID=${DATABASE:-hopscotch} npm run firestore:indexes
           ./deploy/deploy.sh
-  AI on:  printf '%s' "sk-ant-..." | gcloud secrets versions add hopscotch-anthropic-key --data-file=-
+  AI on:  printf '%s' "sk-ant-..." | gcloud secrets versions add anthropic-api-key --data-file=-
           (then redeploy so Cloud Run picks up the new version)
 
   Weekly Dispatch sweep (optional, after the first deploy):
     URL=\$(gcloud run services describe ${SERVICE} --region=${REGION} --format='value(status.url)')
-    SECRET=\$(gcloud secrets versions access latest --secret=hopscotch-cron-secret)
+    SECRET=\$(gcloud secrets versions access latest --secret=cron-secret)
     gcloud scheduler jobs create http hopscotch-dispatch \\
       --location=${REGION} --schedule="0 14 * * 1" \\
       --uri="\$URL/api/dispatch/cron" --http-method=POST \\

@@ -9,13 +9,31 @@ Deployed as Cloud Run service `hopscotch` in `us-central1`, GCP project
 (`college-football-app`, `trip-planner`, `santa-rosa-beach-trip`,
 `eriks-projects`).
 
-**`deploy/deploy.sh` and `deploy/setup-gcp.sh` drive `gcloud` directly**,
-unlike the other apps in this project, which use a no-`gcloud` REST pipeline
-(documented in `eRock35/college-football-app`'s `docs/gcp-deployment.md`).
-That matters from a Claude Code session: `sdk.cloud.google.com` is blocked by
-the sandbox's egress policy, so these scripts cannot be run from here as
-written. Deploying from a session means going through the REST pipeline
-instead; the scripts remain the reference for what a deploy does.
+**Deploy from a session with `gcpdeploy ship beer`** (the deploy skill in
+`eRock35/eriks-projects`, `.claude/skills/deploy/`). It packages this checkout,
+builds it with Cloud Build on the repo's own Dockerfile, and patches the live
+`hopscotch` service image-only — so the service keeps its env, its secrets (the
+shared `anthropic-api-key` and `cron-secret`, plus `hopscotch-jwt-secret`) and
+its `hopscotch-run@` runtime account. It refuses uncommitted work.
+
+Three things about it worth knowing:
+
+- **Rollout can take over ten minutes.** Cloud Run may not start the new
+  revision's instance for a while; `ship` polls for less than that and can
+  report "revision did not become ready" while the deploy is still going.
+  Check `gcpdeploy status` (or the service's `latestReadyRevision`) before
+  concluding anything failed.
+- **`APP_VERSION` goes stale.** An image-only patch never touches env, so
+  every revision since the last full deploy reports the same version. The
+  reliable marker is `built` in `/api/health`, stamped at build time.
+- **It tars the checkout without honouring `.gitignore`.** Only
+  `.dockerignore` keeps local artefacts (the dev SQLite database, `web/dist`)
+  out of the image. Keep it complete.
+
+`deploy/deploy.sh`, `deploy/setup-gcp.sh` and `cloudbuild.yaml` drive `gcloud`
+and are the reference for what a deploy does and for setting up a fresh
+project; `sdk.cloud.google.com` is blocked by the sandbox's egress policy, so
+they cannot run from a session.
 
 ## Commit and PR conventions
 

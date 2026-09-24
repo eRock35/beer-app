@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +8,15 @@ import { fileURLToPath } from 'node:url';
 // quietly end up pointed at two different database files.
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fromPackageRoot = (p) => (path.isAbsolute(p) ? p : path.resolve(packageRoot, p));
+
+/** When the image was built (see Dockerfile). Null outside a built image. */
+function readBuildInfo() {
+  try {
+    return fs.readFileSync(path.resolve(packageRoot, '..', 'BUILD_INFO'), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 const bool = (v, dflt = false) =>
   v === undefined ? dflt : ['1', 'true', 'yes', 'on'].includes(String(v).toLowerCase());
@@ -76,5 +86,6 @@ export const config = {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
 
+  buildInfo: readBuildInfo(),
   webDist: fromPackageRoot(process.env.WEB_DIST || '../web/dist'),
 };

@@ -19,6 +19,11 @@ COPY server ./server
 COPY web ./web
 RUN npm run build -w web
 
+# Stamped after the sources so a source change always re-runs it. It is how
+# /api/health tells revisions apart: a deploy that swaps only the image leaves
+# the APP_VERSION env var exactly where it was.
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/BUILD_INFO
+
 # Re-resolve with dev dependencies stripped, so Vite and friends stay out of the image.
 RUN npm prune --omit=dev
 
@@ -34,6 +39,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/server ./server
 COPY --from=build /app/web/dist ./web/dist
+COPY --from=build /app/BUILD_INFO ./BUILD_INFO
 
 # Cloud Run injects PORT; 8080 is its default and a sane local fallback.
 ENV PORT=8080

@@ -11,6 +11,11 @@ REGION="${REGION:-us-central1}"
 SERVICE="${SERVICE:-hopscotch}"
 REPO="${REPO:-hopscotch}"
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%s)"
+# Secret names. The Anthropic key and the cron secret are the ones shared
+# with the other apps on this project; only the JWT secret is Hopscotch's own.
+JWT_SECRET_NAME="${JWT_SECRET_NAME:-hopscotch-jwt-secret}"
+ANTHROPIC_SECRET_NAME="${ANTHROPIC_SECRET_NAME:-anthropic-api-key}"
+CRON_SECRET_NAME="${CRON_SECRET_NAME:-cron-secret}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}"
 
 echo "==> Building ${IMAGE}:${TAG} with Cloud Build"
@@ -33,7 +38,7 @@ gcloud run deploy "$SERVICE" \
   --max-instances=4 \
   --timeout=300 \
   --set-env-vars="NODE_ENV=production,DB_DRIVER=firestore,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FIRESTORE_DATABASE_ID=${DATABASE_ID:-hopscotch},APP_VERSION=${TAG}" \
-  --set-secrets="JWT_SECRET=hopscotch-jwt-secret:latest,ANTHROPIC_API_KEY=hopscotch-anthropic-key:latest,CRON_SECRET=hopscotch-cron-secret:latest"
+  --set-secrets="JWT_SECRET=${JWT_SECRET_NAME}:latest,ANTHROPIC_API_KEY=${ANTHROPIC_SECRET_NAME}:latest,CRON_SECRET=${CRON_SECRET_NAME}:latest"
 
 URL="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format='value(status.url)')"
 echo

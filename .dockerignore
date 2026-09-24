@@ -9,3 +9,10 @@ data
 .env
 .env.*
 *service-account*.json
+
+# The local dev database. `data` alone only matches the root; the one that
+# actually exists is server/data, and gcpdeploy's tarball does not honour
+# .gitignore, so this is the only thing keeping it out of the image.
+**/data
+**/*.sqlite
+**/*.sqlite-*

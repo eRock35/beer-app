@@ -262,7 +262,7 @@ PROJECT_ID=your-project ./deploy/deploy.sh
 To switch the sommelier on:
 
 ```bash
-printf '%s' "sk-ant-..." | gcloud secrets versions add hopscotch-anthropic-key --data-file=-
+printf '%s' "sk-ant-..." | gcloud secrets versions add anthropic-api-key --data-file=-
 PROJECT_ID=your-project ./deploy/deploy.sh
 ```
 

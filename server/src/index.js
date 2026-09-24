@@ -56,6 +56,9 @@ async function main() {
       database: config.dbDriver === 'firestore' ? config.firestoreDatabaseId || '(default)' : undefined,
       ai: config.aiEnabled,
       version: process.env.APP_VERSION || 'dev',
+      // The build stamp is the reliable marker: image-only deploys leave
+      // APP_VERSION untouched, so several revisions can share one "version".
+      built: config.buildInfo,
     })
   );
 
