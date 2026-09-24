@@ -143,3 +143,22 @@ test('signing out of a shared session signs you out of the domain', async () => 
   assert.match(cleared, /stc_session=;/, 'the shared cookie is cleared');
   assert.match(cleared, /Max-Age=0/);
 });
+
+test('several first visits at once still make one row', async () => {
+  // A page's first load is not one request; it is a handful in parallel, all
+  // carrying a cookie this app has never seen. They must agree on one account.
+  clearCache();
+  sessions.set('fresh-session', { email: 'Racer@Example.com', displayName: 'Racer' });
+  const hits = await Promise.all(
+    Array.from({ length: 6 }, () => get('/api/auth/me', 'stc_session=fresh-session'))
+  );
+  for (const r of hits) assert.equal(r.status, 200);
+  const bodies = await Promise.all(hits.map((r) => r.json()));
+  const ids = new Set(bodies.map((b) => b.user?.id));
+  assert.equal(ids.size, 1, `every response should name the same account, got ${[...ids].join(', ')}`);
+
+  const { getStore } = await import('../src/store/index.js');
+  const rows = await getStore().query('users', { where: [['email', '==', 'racer@example.com']] });
+  assert.equal(rows.length, 1, 'exactly one row for the address, however many requests raced');
+  assert.equal(rows[0].fromSharedAccount, true);
+});

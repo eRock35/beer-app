@@ -42,7 +42,6 @@
  */
 import crypto from 'node:crypto';
 import { getStore } from './store/index.js';
-import { newId } from './lib/ids.js';
 
 const COOKIE = 'stc_session';
 const USERS = 'users';
@@ -115,6 +114,22 @@ async function whoIs(raw) {
 }
 
 /**
+ * The id a shared-account holder's local row gets on first sight.
+ *
+ * Derived from the address rather than minted, because first sight is a
+ * check-then-create with a window in it: a page's first load fires several
+ * requests at once, every one of them queries for the row, every one misses,
+ * and every one creates. That happened on 2026-09-21 - one address, two rows,
+ * eighteen milliseconds apart - and from then on the email lookup returned
+ * whichever it liked. With the id fixed by the address, the racers all write
+ * the same document, and the second create is an overwrite of identical
+ * defaults rather than a second account. The prefix keeps it clear of the
+ * `u_` ids Hopscotch mints for accounts it holds the password for.
+ */
+const sharedRowId = (email) =>
+  'u_shared_' + crypto.createHash('sha256').update(email).digest('hex').slice(0, 24);
+
+/**
  * The Hopscotch user behind a shared session, or null.
  *
  * This does NOT move Hopscotch's data onto identity. Pours, cellars and trips
@@ -141,7 +156,7 @@ export async function userFromSharedSession(req) {
   const [existing] = await store.query(USERS, { where: [['email', '==', email]], limit: 1 });
   if (existing) return existing;
 
-  return store.put(USERS, newId('u_'), {
+  return store.put(USERS, sharedRowId(email), {
     email,
     displayName: identity.displayName || email.split('@')[0],
     // No passwordHash on purpose. This account signs in on the shared
