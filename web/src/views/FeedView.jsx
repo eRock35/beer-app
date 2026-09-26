@@ -5,12 +5,14 @@ import { Empty, ErrorState, LoadingList, ScorePill } from '../components/ui.jsx'
 import { PageTitle } from '../components/header.jsx';
 import { BubblesIcon, CheersIcon, MapPinIcon, PlusIcon } from '../components/icons.jsx';
 import { relativeDate, placeLine } from '../lib/format.js';
+import { CrowdLine, useBeerCrowd } from '../components/crowd.jsx';
 
 export function FeedView({ go }) {
   const { user } = useApp();
   const { data, loading, error, setData, reload } = useAsync(() => api.feed(), []);
   const [busyId, setBusyId] = useState(null);
   const pours = data?.pours || [];
+  const crowd = useBeerCrowd(pours);
 
   const cheer = async (pour) => {
     if (!user) return;
@@ -88,6 +90,12 @@ export function FeedView({ go }) {
               </div>
               <ScorePill score={pour.score} />
             </div>
+
+            <CrowdLine
+              entry={crowd.get(pour.brewery, pour.beerName)}
+              // Your own pour: the score on it, not your average of that beer.
+              yourScore={user && pour.userId === user.id ? pour.score ?? undefined : undefined}
+            />
 
             {pour.notes && <p className="card-text">{pour.notes}</p>}
 

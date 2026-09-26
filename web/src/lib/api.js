@@ -51,8 +51,14 @@ export const api = {
   comment: (id, body) => request(`/pours/${id}/comments`, { method: 'POST', body: { body } }),
   pour: (id) => request(`/pours/${id}`),
 
-  passport: () => request('/passport'),
+  // tz: minutes east of UTC, so "today" for the current streak is the drinker's.
+  passport: () => request(`/passport${qs({ tz: -new Date().getTimezoneOffset() })}`),
   samplePassport: () => request('/passport/sample'),
+  sharePassport: () => request('/passport/share', { method: 'POST' }),
+
+  crowdBeers: (beers) => request('/crowd/beers', { method: 'POST', body: { beers } }),
+  crowdBrewery: (name) => request(`/crowd/brewery${qs({ name })}`),
+  crowdPalate: () => request('/crowd/palate'),
 
   shareTrip: (id) => request(`/trips/${id}/share`, { method: 'POST' }),
   sharedCrawl: (shareId) => request(`/shared-crawl/${shareId}`),

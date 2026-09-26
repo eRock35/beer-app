@@ -14,6 +14,22 @@ export const STYLE_FAMILIES = {
   specialty: 'Specialty & Other',
 };
 
+/**
+ * The same families as a drinker would say them in a sentence - "you rate
+ * stouts and porters higher than 88% of drinkers" - rather than as a heading.
+ */
+export const FAMILY_NOUNS = {
+  stout: 'stouts and porters',
+  ipa: 'IPAs',
+  paleAle: 'pale and amber ales',
+  lager: 'lagers',
+  wheat: 'wheat beers',
+  belgian: 'Belgian and farmhouse ales',
+  sour: 'sours',
+  strong: 'barleywines and strong ales',
+  specialty: 'specialty beers',
+};
+
 export const STYLES = [
   ['Imperial Stout', 'stout'], ['Barrel-Aged Imperial Stout', 'stout'], ['Pastry Stout', 'stout'],
   ['Oatmeal Stout', 'stout'], ['Dry Irish Stout', 'stout'], ['Milk Stout', 'stout'],

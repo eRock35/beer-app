@@ -30,6 +30,10 @@ const pourInput = z.object({
   lng: z.number().min(-180).max(180).nullable().optional(),
   visibility: z.enum(['public', 'private']).default('public'),
   drankAt: z.string().datetime().optional(),
+  // Minutes east of UTC where it was drunk, from the phone. It is what puts an
+  // 8pm pint in Denver on Tuesday rather than on UTC's Wednesday, so the streak
+  // counts the day the drinker lived. Optional: older pours have none.
+  drankTzOffset: z.number().int().min(-840).max(840).nullable().optional(),
 });
 
 /** Everything derived from the raw entry lives here, computed on write. */

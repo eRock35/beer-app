@@ -17,6 +17,7 @@ import {
 } from '../components/icons.jsx';
 import { distanceLabel, placeLine } from '../lib/format.js';
 import { PourForm } from './PourForm.jsx';
+import { BreweryCrowd } from '../components/crowd.jsx';
 
 /**
  * Pin colour encodes visit state — three values only, which is what keeps the
@@ -510,6 +511,8 @@ export function MapView() {
                 {distanceLabel(selected.distanceMiles)} from your search centre.
               </p>
             )}
+
+            <BreweryCrowd name={selected.name} />
 
             {user ? (
               <button type="button" className="btn btn-primary btn-block btn-lg" onClick={() => setLogging(selected)}>

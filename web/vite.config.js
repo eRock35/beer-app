@@ -11,6 +11,9 @@ export default defineConfig({
         target: process.env.API_ORIGIN || 'http://localhost:8080',
         changeOrigin: true,
       },
+      // Share pages and cards are drawn by the server, not the SPA.
+      '^/p/': { target: process.env.API_ORIGIN || 'http://localhost:8080' },
+      '^/c/[^/]+\\.png$': { target: process.env.API_ORIGIN || 'http://localhost:8080' },
     },
   },
   build: {

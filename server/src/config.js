@@ -69,6 +69,10 @@ export const config = {
   // spend, so it is a hard limit rather than a suggestion.
   dispatchMaxWatchesPerSweep: Number(process.env.DISPATCH_MAX_WATCHES_PER_SWEEP || 25),
 
+  // How long the crowd numbers (averages over public pours) are held in memory
+  // before the next request recomputes them. 0 recomputes on every request.
+  crowdCacheSeconds: Number(process.env.CROWD_CACHE_SECONDS ?? 300),
+
   allowRegistration: bool(process.env.ALLOW_REGISTRATION, true),
   // When set, only these emails may register. Handy for a personal deployment.
   inviteEmails: (process.env.INVITE_EMAILS || '')

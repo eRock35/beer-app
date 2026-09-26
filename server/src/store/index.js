@@ -13,6 +13,7 @@ export const COLLECTIONS = [
   'cellar',
   'trips',
   'shared_crawls',
+  'passport_shares',
   'follows',
   'ai_usage',
   'dispatch_watches',

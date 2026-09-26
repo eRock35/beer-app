@@ -25,6 +25,13 @@ const EMPTY = {
   visibility: 'public',
 };
 
+/** An ISO instant as the value a datetime-local input wants, in this phone's zone. */
+function localInput(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 /** Mirrors the server's weighting so the score updates as you drag. */
 function previewScore(scores, axes) {
   let total = 0;
@@ -58,6 +65,10 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
   const [polishing, setPolishing] = useState(false);
   const [tagFilter, setTagFilter] = useState('');
   const [scanning, setScanning] = useState(false);
+  // When it was drunk, not when it is being typed - a beer logged the next
+  // morning belongs to the night before, and so does its place in a streak.
+  const [when, setWhen] = useState(() => localInput(existing?.drankAt));
+  const [whenTouched, setWhenTouched] = useState(false);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const setScore = (key, value) => setForm((f) => ({ ...f, scores: { ...f.scores, [key]: value } }));
@@ -141,6 +152,14 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
             .map(([k, v]) => [k, Number(v)])
         ),
       };
+      // A new pour always says when and where-in-the-world; an edit only when
+      // the time was changed, so re-saving on a trip does not move an old
+      // pour into this phone's time zone.
+      const at = when ? new Date(when) : null;
+      if (at && !Number.isNaN(at.getTime()) && (!existing || whenTouched)) {
+        payload.drankAt = at.toISOString();
+        payload.drankTzOffset = -at.getTimezoneOffset();
+      }
       // Server-managed fields must not be echoed back on an edit.
       delete payload.id;
       delete payload.userId;
@@ -346,6 +365,23 @@ export function PourForm({ preset = {}, existing, onSaved, onCancel }) {
       </FormGroup>
 
       <FormGroup>
+        <Field
+          label="When"
+          id="pf-when"
+          hint="Logging it the morning after? Set the time you drank it and your streak counts the right day."
+        >
+          <input
+            id="pf-when"
+            className="input"
+            type="datetime-local"
+            value={when}
+            max={localInput()}
+            onChange={(e) => {
+              setWhen(e.target.value);
+              setWhenTouched(true);
+            }}
+          />
+        </Field>
         <div className="row row-keep">
           <Field label="City" id="pf-city">
             <input id="pf-city" className="input" value={form.city} onChange={(e) => set('city', e.target.value)} autoCapitalize="words" autoComplete="off" enterKeyHint="next" />

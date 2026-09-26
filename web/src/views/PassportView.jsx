@@ -3,8 +3,10 @@ import { api } from '../lib/api.js';
 import { useAsync } from '../store.jsx';
 import { Banner, Empty, ErrorState, ScorePill, Stat } from '../components/ui.jsx';
 import { PageTitle } from '../components/header.jsx';
-import { CheckIcon, MapPinIcon, TicketIcon } from '../components/icons.jsx';
+import { CheckIcon, FlameIcon, MapPinIcon, PeopleIcon, ShareIcon, TicketIcon } from '../components/icons.jsx';
 import { PalateRadar, ScoreTimeline, StyleBars } from '../components/charts.jsx';
+import { standingSentence } from '../components/crowd.jsx';
+import { ShareSheet } from '../components/ShareSheet.jsx';
 
 export function PassportView({ go }) {
   const { data, loading, error, reload } = useAsync(() => api.passport(), []);
@@ -14,6 +16,10 @@ export function PassportView({ go }) {
   // fake one is the worst of both.
   const [sample, setSample] = useState(null);
   const [sampleError, setSampleError] = useState('');
+  const [sharing, setSharing] = useState(false);
+  // Where you sit against other drinkers, per style. Your own passport only -
+  // the worked example has no drinker to compare.
+  const palate = useAsync(() => api.crowdPalate(), [], { enabled: Boolean(data?.stats?.total) });
 
   if (loading) {
     return (
@@ -38,7 +44,7 @@ export function PassportView({ go }) {
   }
 
   const shown = sample || data;
-  const { badges, earnedCount, stats, palate, families, topPours, timeline } = shown;
+  const { badges, earnedCount, stats, palate: axes, families, topPours, timeline, next } = shown;
 
   if (!stats.total) {
     return (
@@ -93,7 +99,18 @@ export function PassportView({ go }) {
         </Banner>
       )}
 
-      <PageTitle eyebrow={sample ? 'An example' : 'Your record'} title="Passport" className="page-head-flush">
+      <PageTitle
+        eyebrow={sample ? 'An example' : 'Your record'}
+        title="Passport"
+        className="page-head-flush"
+        action={
+          !sample && (
+            <button type="button" className="btn btn-secondary" onClick={() => setSharing(true)}>
+              <ShareIcon /> Share passport
+            </button>
+          )
+        }
+      >
         {stats.total} beers, {stats.breweries} breweries, {stats.states.length}{' '}
         {stats.states.length === 1 ? 'state' : 'states'}. {earnedCount} of {badges.length} badges earned.
       </PageTitle>
@@ -111,27 +128,21 @@ export function PassportView({ go }) {
               : 'None yet'
           }
         />
-        <Stat
-          value={stats.longestStreak}
-          label="Longest streak"
-          // "1 / Longest streak / days in a row" reads as "1 days". The one-day
-          // case is not a streak yet, and saying so is more useful than a
-          // plural that does not agree.
-          note={
-            stats.longestStreak > 1
-              ? 'consecutive days logging'
-              : stats.longestStreak === 1
-                ? 'day — two running starts a streak'
-                : 'nothing logged yet'
-          }
-        />
+        <Stat value={stats.breweries} label="Breweries" note={`${stats.cities.length} ${stats.cities.length === 1 ? 'city' : 'cities'}`} />
       </div>
+
+      <div className="grid grid-2">
+        <StreakCard stats={stats} sample={Boolean(sample)} />
+        {next && <NextBadgeCard next={next} />}
+      </div>
+
+      {!sample && <CrowdStanding state={palate} />}
 
       <div className="grid grid-2">
         <section className="card">
           <div className="chart-title">Your palate</div>
           <div className="chart-sub">Average score per axis, out of ten. Tap a point for the count.</div>
-          <PalateRadar palate={palate} />
+          <PalateRadar palate={axes} />
         </section>
 
         <section className="card">
@@ -242,6 +253,88 @@ export function PassportView({ go }) {
           </div>
         </section>
       )}
+
+      {!sample && <ShareSheet open={sharing} onClose={() => setSharing(false)} create={api.sharePassport} />}
     </div>
+  );
+}
+
+/**
+ * The run you are on and the best you have had. Informational, never a
+ * countdown: a streak is still alive through the whole of the next day, and
+ * a non-alcoholic pour counts as much as anything else.
+ */
+function StreakCard({ stats, sample }) {
+  const { currentStreak: current = 0, longestStreak: longest = 0, loggedToday } = stats;
+  let line;
+  if (!current) line = longest ? 'No run going right now.' : 'Log on consecutive days to start one.';
+  else if (loggedToday) line = 'Logged today.';
+  else line = 'Still alive — a pour logged today extends it.';
+  return (
+    <section className="card streak-card" aria-label="Streak">
+      <div className="streak-icon" aria-hidden="true"><FlameIcon size={26} /></div>
+      <div style={{ minWidth: 0 }}>
+        <div className="card-kicker">{sample ? 'Their streak' : 'Current streak'}</div>
+        <div className="streak-value tabular">
+          {current} <span className="streak-unit">{current === 1 ? 'day' : 'days'}</span>
+        </div>
+        <div className="secondary" style={{ fontSize: 14 }}>
+          {line} Best: {longest} {longest === 1 ? 'day' : 'days'}.
+        </div>
+        <div className="secondary" style={{ fontSize: 13, marginTop: 4 }}>Counted by the day you drank it. Non-alcoholic pours count too.</div>
+      </div>
+    </section>
+  );
+}
+
+function NextBadgeCard({ next }) {
+  return (
+    <section className="card next-badge" aria-label="Next badge">
+      <span className="badge-icon next-badge-icon" aria-hidden="true">{next.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="card-kicker">Next badge</div>
+        <div className="badge-name">{next.name}</div>
+        <div className="secondary" style={{ fontSize: 14 }}>{next.text}</div>
+        <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={next.pct} aria-label={`${next.name} progress`}>
+          <div className="progress-fill" style={{ width: `${next.pct}%` }} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** "You rate stouts and porters higher than 88% of drinkers", per family. */
+function CrowdStanding({ state }) {
+  if (state.loading || state.error || !state.data) return null;
+  const { families, minDrinkers } = state.data;
+  return (
+    <section className="card">
+      <h3 className="card-title" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <PeopleIcon size={18} /> You vs the crowd
+      </h3>
+      {families.length ? (
+        <ul className="list-reset crowd-standing">
+          {families.map((f) => (
+            <li key={f.family}>
+              <span className="crowd-standing-text">{standingSentence(f)}</span>
+              <span className="secondary tabular crowd-standing-meta">
+                your {f.yourAverage} avg · {f.drinkers} drinkers
+              </span>
+              <span className="crowd-meter" aria-hidden="true">
+                <span className="crowd-meter-dot" style={{ left: `${f.percentile}%` }} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="secondary" style={{ margin: 0, fontSize: 14 }}>
+          Score a style at least twice and, once {minDrinkers} other drinkers have rated it in public,
+          this shows where your palate sits against theirs.
+        </p>
+      )}
+      <p className="secondary" style={{ fontSize: 13, margin: '10px 0 0' }}>
+        From public pours only, and only where at least {minDrinkers} other drinkers are behind the number.
+      </p>
+    </section>
   );
 }

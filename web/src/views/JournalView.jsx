@@ -5,6 +5,7 @@ import { Confirm, Empty, ErrorState, LoadingList, ScorePill, Sheet, useToast } f
 import { PageTitle } from '../components/header.jsx';
 import { BookIcon, CheersIcon, LockIcon, PlusIcon, SearchIcon } from '../components/icons.jsx';
 import { AxisBars } from '../components/charts.jsx';
+import { CrowdLine, useBeerCrowd } from '../components/crowd.jsx';
 import { PourForm } from './PourForm.jsx';
 import { relativeDate, placeLine } from '../lib/format.js';
 
@@ -17,6 +18,7 @@ export function JournalView() {
 
   const { data, loading, error, reload } = useAsync(() => api.pours({ limit: 500 }), []);
   const pours = data?.pours || [];
+  const crowd = useBeerCrowd(pours);
 
   const filtered = useMemo(() => {
     const needle = filters.q.trim().toLowerCase();
@@ -152,6 +154,8 @@ export function JournalView() {
               </div>
               <ScorePill score={pour.score} />
             </div>
+
+            <CrowdLine entry={crowd.get(pour.brewery, pour.beerName)} yourScore={pour.score ?? undefined} />
 
             {Object.keys(pour.scores || {}).length > 0 && (
               <div style={{ marginTop: 14 }}>

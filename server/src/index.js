@@ -16,6 +16,8 @@ import { cellarRouter, sharedCrawlRouter, tripRouter, wishlistRouter } from './r
 import { passportRouter } from './routes/passport.js';
 import { aiRouter } from './routes/ai.js';
 import { dispatchRouter } from './routes/dispatch.js';
+import { crowdRouter } from './routes/crowd.js';
+import { sharePages } from './routes/share-pages.js';
 import { AXES } from './domain/scoring.js';
 import { FLAVOUR_TAGS, STYLES, STYLE_FAMILIES } from './domain/styles.js';
 
@@ -80,13 +82,20 @@ async function main() {
   // no account here. It is a frozen copy, so it exposes no live document.
   app.use('/api/shared-crawl', sharedCrawlRouter);
   app.use('/api/passport', passportRouter);
+  // Open to signed-out readers too: every number it answers is an aggregate
+  // over five or more drinkers' public pours, or nothing.
+  app.use('/api/crowd', crowdRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/dispatch', dispatchRouter);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'No such endpoint.' }));
 
-  // Built SPA, when there is one. In dev, Vite serves the client instead.
+  // Share links: /p/<id> (a passport) and the og tags and card for /c/<id>
+  // (a crawl). Ahead of the static files so /c/<id> gets its tags added.
   const dist = config.webDist;
+  app.use(sharePages({ dist }));
+
+  // Built SPA, when there is one. In dev, Vite serves the client instead.
   if (fs.existsSync(dist)) {
     app.use(
       express.static(dist, {
