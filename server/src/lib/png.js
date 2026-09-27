@@ -51,6 +51,9 @@ export function createPngCache(max = 200) {
       }
       return v || null;
     },
+    delete(k) {
+      m.delete(k);
+    },
     set(k, v) {
       m.set(k, v);
       if (m.size > max) m.delete(m.keys().next().value);

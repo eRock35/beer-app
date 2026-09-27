@@ -6,6 +6,7 @@ import { wrap } from '../lib/http.js';
 import { requireUser } from '../auth.js';
 import { computeBadges } from '../domain/badges.js';
 import { shareName } from '../domain/cards.js';
+import { ownerTag } from '../lib/share-owner.js';
 import { STYLE_FAMILIES } from '../domain/styles.js';
 import { AXES } from '../domain/scoring.js';
 import { SAMPLE_PROFILE, sampleCellar, samplePours } from '../domain/sample-journal.js';
@@ -171,7 +172,9 @@ passportRouter.get(
  * private flag exists to keep.
  *
  * The id is 72 random bits, not a time-prefixed newId, so share links cannot
- * be walked.
+ * be walked. `owner` is an HMAC of the user id (lib/share-owner.js), so the
+ * maker can list and delete it (routes/shares.js) while the document itself
+ * still says nothing about who made it.
  */
 const shareLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -204,6 +207,7 @@ passportRouter.post(
       longestStreak: stats.longestStreak,
       currentStreak: stats.currentStreak,
       topBeer: top ? { beerName: top.beerName, brewery: top.brewery || '', score: top.score } : null,
+      owner: ownerTag(req.user.id),
       createdAt: new Date().toISOString(),
     });
 

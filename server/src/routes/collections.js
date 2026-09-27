@@ -4,6 +4,7 @@ import { getStore } from '../store/index.js';
 import { newId } from '../lib/ids.js';
 import { badRequest, forbidden, notFound, parse, wrap } from '../lib/http.js';
 import { requireUser } from '../auth.js';
+import { ownerTag } from '../lib/share-owner.js';
 
 /**
  * Three small owned-list resources — wishlist, cellar, trips — share the same
@@ -159,6 +160,10 @@ export const tripRouter = ownedResource({
  * marking a stop done, or deleting the trip, must not rewrite or break a link
  * already sent. It carries the route and the walk, and nothing that ties back
  * to the owner beyond the display name they already show on the feed.
+ *
+ * `owner` is an HMAC of the user id (lib/share-owner.js), never sent to a
+ * reader, so the maker can delete the link later. Shares made before it
+ * existed have none, and cannot be deleted from the app.
  */
 tripRouter.post(
   '/:id/share',
@@ -187,6 +192,7 @@ tripRouter.post(
       walkable: trip.walkable ?? null,
       itinerary: trip.itinerary || '',
       by: req.user.displayName || 'someone',
+      owner: ownerTag(req.user.id),
       createdAt: new Date().toISOString(),
     });
 
@@ -203,8 +209,9 @@ sharedCrawlRouter.get(
   wrap(async (req, res) => {
     const crawl = await getStore().get('shared_crawls', String(req.params.shareId).slice(0, 60));
     if (!crawl) throw notFound('That crawl is not here.');
-    res.set('Cache-Control', 'public, max-age=300');
-    const { userId, ...safe } = crawl;
+    res.set('Cache-Control', 'public, max-age=60');
+    // Neither who made it (userId, on the oldest shares) nor the owner tag.
+    const { userId, owner, ...safe } = crawl;
     res.json({ crawl: safe });
   })
 );

@@ -55,6 +55,8 @@ export const api = {
   passport: () => request(`/passport${qs({ tz: -new Date().getTimezoneOffset() })}`),
   samplePassport: () => request('/passport/sample'),
   sharePassport: () => request('/passport/share', { method: 'POST' }),
+  shares: () => request('/shares'),
+  deleteShare: (kind, id) => request(`/shares/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   crowdBeers: (beers) => request('/crowd/beers', { method: 'POST', body: { beers } }),
   crowdBrewery: (name) => request(`/crowd/brewery${qs({ name })}`),

@@ -7,6 +7,7 @@ import { CheckIcon, FlameIcon, MapPinIcon, PeopleIcon, ShareIcon, TicketIcon } f
 import { PalateRadar, ScoreTimeline, StyleBars } from '../components/charts.jsx';
 import { standingSentence } from '../components/crowd.jsx';
 import { ShareSheet } from '../components/ShareSheet.jsx';
+import { SharedLinks } from '../components/SharedLinks.jsx';
 
 export function PassportView({ go }) {
   const { data, loading, error, reload } = useAsync(() => api.passport(), []);
@@ -20,6 +21,7 @@ export function PassportView({ go }) {
   // Where you sit against other drinkers, per style. Your own passport only -
   // the worked example has no drinker to compare.
   const palate = useAsync(() => api.crowdPalate(), [], { enabled: Boolean(data?.stats?.total) });
+  const shares = useAsync(() => api.shares(), [], { enabled: Boolean(data) });
 
   if (loading) {
     return (
@@ -254,7 +256,19 @@ export function PassportView({ go }) {
         </section>
       )}
 
-      {!sample && <ShareSheet open={sharing} onClose={() => setSharing(false)} create={api.sharePassport} />}
+      {!sample && <SharedLinks state={shares} />}
+
+      {!sample && (
+        <ShareSheet
+          open={sharing}
+          onClose={() => {
+            setSharing(false);
+            // A new link was just made: show it in the list.
+            shares.reload();
+          }}
+          create={api.sharePassport}
+        />
+      )}
     </div>
   );
 }

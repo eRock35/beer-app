@@ -23,6 +23,13 @@ const CRAWL_ID = /^[A-Za-z0-9_-]{1,60}$/;
 
 const pngCache = createPngCache(200);
 
+/** Drops a deleted share's card from this instance's memory. Other instances
+ *  hold their own copies, but never serve them: every card request reads the
+ *  share document first, and a deleted one is a 404. */
+export function forgetCard(kind, id) {
+  pngCache.delete(`${kind}:${id}`);
+}
+
 const origin = (req) => `${req.protocol}://${req.get('host')}`;
 
 function sendPng(res, key, draw) {
@@ -32,8 +39,9 @@ function sendPng(res, key, draw) {
     if (!buf) return res.status(503).type('text/plain').send('Cards are unavailable.');
     pngCache.set(key, buf);
   }
-  // A share is frozen, so its picture never changes.
-  res.set('Cache-Control', 'public, max-age=86400');
+  // A share is frozen, so its picture never changes - but it can be deleted,
+  // so browsers and proxies are only told to keep it for five minutes.
+  res.set('Cache-Control', 'public, max-age=300');
   res.set('X-Content-Type-Options', 'nosniff');
   return res.type('image/png').send(buf);
 }
@@ -151,7 +159,7 @@ export function sharePages({ dist }) {
       if (!PASSPORT_ID.test(id)) return notHere(res);
       const share = await getStore().get('passport_shares', id);
       if (!share) return notHere(res);
-      res.set('Cache-Control', 'public, max-age=300');
+      res.set('Cache-Control', 'public, max-age=60');
       return res.type('html').send(passportPage(req, id, share));
     } catch (err) {
       return next(err);

@@ -18,6 +18,7 @@ import { aiRouter } from './routes/ai.js';
 import { dispatchRouter } from './routes/dispatch.js';
 import { crowdRouter } from './routes/crowd.js';
 import { sharePages } from './routes/share-pages.js';
+import { sharesRouter } from './routes/shares.js';
 import { AXES } from './domain/scoring.js';
 import { FLAVOUR_TAGS, STYLES, STYLE_FAMILIES } from './domain/styles.js';
 
@@ -85,6 +86,8 @@ async function main() {
   // Open to signed-out readers too: every number it answers is an aggregate
   // over five or more drinkers' public pours, or nothing.
   app.use('/api/crowd', crowdRouter);
+  // The share links you made, and deleting them. Signed in only.
+  app.use('/api/shares', sharesRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/dispatch', dispatchRouter);
 

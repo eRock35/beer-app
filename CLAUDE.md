@@ -37,18 +37,58 @@ rather than trusted to a caller:
 - **Five drinkers or nothing** (`MIN_DRINKERS`). Below it the answer is
   `null` - not a smaller number, not a count - so a number can never point at
   one person. The most-poured beer at a brewery must clear the bar itself.
-- **The viewer is left out of their own crowd**, and five *others* are
-  required: with exactly five including you, you could subtract your own
-  score and read the other four's average.
+- **Numbers move two drinkers at a time** (the differencing rule, below).
+- **The viewer is left out of their own crowd** - out of the same even
+  prefix everyone sees, not out of the full list - and five *others* must
+  remain.
 - **Per drinker, not per pour**: six logs of one beer are one voice.
 - Beers and breweries match on a folded key (`beerKey`/`breweryKey`: case,
   accents, punctuation, and "Brewing Co" / "The" / "Brewery" dropped), so
   "Side Project" typed by hand meets "Side Project Brewing" from the map.
 
-What it does not stop: someone watching a number move between two reads can
-infer the score of whoever logged in between. Averages over small groups
-always leak that way; the five-minute cache and whole-number rounding blunt
-it. If that ever matters, raise `MIN_DRINKERS` rather than adding noise.
+#### The differencing rule (2026-09-27)
+
+An average read before and after one person logs gives that person's score
+away: (n+1)*after - n*before. A threshold only decides when the first number
+appears, so on its own it never stopped this. Now every aggregate - a beer's
+average, a brewery's, its most-poured beer, the style percentile - is taken
+over the **largest even-sized prefix** of its drinkers, ordered by the
+`createdAt` of each one's first public pour of it (ties by user id):
+`settled()` in `domain/crowd.js`.
+
+- `createdAt` is stamped by the server and never edited, so a newcomer always
+  sorts last and a back-dated `drankAt` cannot jump the queue.
+- Any single drinker arriving or leaving changes the published set by **zero
+  or two** people: the 7th drinker is invisible, the 8th brings both in; one
+  going private (or deleting) either shrinks the set by two or lets the next
+  in line take their place. Always two unknowns in one equation.
+- Deterministic: the same pours give the same prefix on every instance and
+  every recompute, so two readers or two servers never see sets that differ
+  by one.
+- The viewer is removed from that prefix **after** it is taken. Removing them
+  first would make their set and a signed-out reader's differ by the viewer
+  (whose score they know) and one other person - a leak of exactly one.
+- Most-poured ties go to the beer's name, never to a pour count, so one
+  person logging a beer again cannot change which beer is named.
+- The first number now needs six drinkers for a signed-out reader (five is
+  odd, so its prefix is four); five others still for a signed-in one.
+
+What still leaks, said plainly:
+
+- **An edit.** A drinker in the prefix changing a score - or making one of
+  several pours of the same beer private, which moves their own mean - moves
+  the average with the set unchanged. A watcher learns that *someone* moved
+  by n times the change, not who.
+- **A long history.** Each published value is one linear equation over the
+  people behind it; someone recording values for months could in principle
+  solve a system of them. Whole numbers and the five-minute cache make that
+  impractical, not impossible.
+- **The feed.** Public pours are public: the feed and `GET /api/pours/:id`
+  show each with its author and score. This rule stops the crowd numbers
+  being a *second* way to learn a score (including a drinker's mean across
+  repeat pours, and pours old enough to have left the feed), not the first.
+  Anyone who wants a score kept off the crowd numbers should mark the pour
+  private - which also keeps it off the feed.
 
 **Computed on read, cached** (`routes/crowd.js`): one query of every public
 pour (`visibility == 'public'`, no order - no composite index), aggregated,
@@ -111,7 +151,23 @@ ahead of the static files.
   (registration fills it in that way). Counts include private pours (they are
   the drinker's own totals, shared by choice); the **top beer is from public
   pours only**. Ids are 72 random bits, so links cannot be walked. 20 shares
-  an hour per account. No revoke - like crawl shares, a sent link is a copy.
+  an hour per account.
+- **Revocable (2026-09-27).** Passport and crawl shares carry `owner`, an
+  HMAC of the user id under a key derived from `JWT_SECRET`
+  (`lib/share-owner.js`) - the maker can be matched, but the document says
+  nothing about who that is, and `GET /api/shared-crawl` strips the field.
+  "Your shared links" on the Passport (`GET /api/shares`, one equality
+  filter on `owner`, no index) lists them with Delete
+  (`DELETE /api/shares/:kind/:id`). Anyone but the maker gets the 404 an
+  unknown id gets. A deleted link is dead on every instance at once: the
+  pages and PNGs read the share document on every request, so a card still
+  in another instance's memory is never served (this instance's copy is
+  dropped too). The page's `Cache-Control` is now 60 s and the PNG's 300 s
+  (it was a day), so a browser or proxy cannot keep a deleted card for long.
+  What cannot be recalled: a preview a chat app already fetched and stored.
+  Crawl shares made before 2026-09-27 have no tag and cannot be deleted from
+  the app; they keep working. **Rotating `JWT_SECRET` orphans every tag**:
+  links stay live but nobody can list or delete them any more.
 - Unknown `/p/<id>` is a 404; unknown `/c/<id>` is the SPA with a 404 status
   and no tags (it still says "Not here"). PNGs are cached in memory (200).
 - **Two taps to share.** The Passport's Share shows the card first, then
@@ -121,14 +177,18 @@ ahead of the static files.
   `navigator.canShare({files})` allows, else the link; a desktop copies the
   link.
 
-Tests: `test/crowd.test.js`, `test/streaks.test.js`, `test/cards.test.js`
+Tests: `test/crowd.test.js` (including one newcomer never moving a number,
+two doing, the same numbers from any order, the back-dated newcomer, a
+leaver, the viewer's prefix), `test/streaks.test.js`, `test/cards.test.js`
 (hostile markup, PNG magic and size), `test/share-crowd.test.js` (the routes
 over HTTP: public-only, the five-drinker bar, the back-dated pour with a zone,
-og tags escaped, unknown ids). Rendered at 390px and 1280px, light and dark.
+og tags escaped, unknown ids, only the maker deletes, a deleted link and its
+card are dead). Rendered at 390px and 1280px, light and dark.
 
-**Privacy page:** the passport share (what it shows publicly) and the crowd
-aggregates are new public surfaces; `strongtechnicalconsulting.com/privacy`
-should describe them before this ships.
+**Privacy page:** the passport share (what it shows publicly), that shares
+can now be deleted by their maker (and what deletion cannot recall), and the
+crowd aggregates are public surfaces; `strongtechnicalconsulting.com/privacy`
+should describe them.
 
 ## Commit and PR conventions
 

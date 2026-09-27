@@ -280,3 +280,75 @@ test('an unknown crawl is the SPA with a 404 and no tags', async () => {
   assert.equal(html.includes('og:image'), false);
   assert.equal((await get('/c/s_nope.png')).status, 404);
 });
+
+/* ---------------- taking a link back ---------------- */
+
+const del = (p, cookie) => fetch(B + p, { method: 'DELETE', headers: cookie ? { cookie } : {} });
+
+test('a share records its maker without naming them', async () => {
+  const { id } = await (await post('/api/passport/share', {}, cookies.owner)).json();
+  const doc = await store.get('passport_shares', id);
+  assert.ok(doc.owner, 'an owner tag');
+  const me = (await (await get('/api/auth/me', cookies.owner)).json()).user;
+  assert.notEqual(doc.owner, me.id);
+  assert.equal(JSON.stringify(doc).includes(me.id), false, 'no user id anywhere in it');
+  // Two users' tags differ; the same user's tag is stable.
+  const other = await (await post('/api/passport/share', {}, cookies.u2)).json();
+  assert.notEqual((await store.get('passport_shares', other.id)).owner, doc.owner);
+});
+
+test('your shared links lists yours and only yours', async () => {
+  assert.equal((await get('/api/shares')).status, 401);
+  const mine = await (await get('/api/shares', cookies.owner)).json();
+  const theirs = await (await get('/api/shares', cookies.u2)).json();
+  assert.ok(mine.passports.length >= 2);
+  assert.ok(mine.crawls.length >= 1, 'the crawl shared above');
+  const mineIds = new Set(mine.passports.map((p) => p.id));
+  for (const p of theirs.passports) assert.equal(mineIds.has(p.id), false);
+  assert.ok(mine.passports[0].url.endsWith(`/p/${mine.passports[0].id}`));
+  assert.equal(JSON.stringify(mine).includes('owner'), false, 'the tag is not sent back');
+});
+
+test('only the maker can delete a passport link; then it is dead', async () => {
+  const { id } = await (await post('/api/passport/share', {}, cookies.owner)).json();
+  // Warm this instance's card cache, so delete has something to forget.
+  assert.equal((await get(`/p/${id}.png`)).status, 200);
+
+  assert.equal((await del(`/api/shares/passport/${id}`)).status, 401, 'signed out');
+  assert.equal((await del(`/api/shares/passport/${id}`, cookies.u2)).status, 404, 'someone else: as if it did not exist');
+  assert.equal((await get(`/p/${id}`)).status, 200, 'still live after their attempt');
+
+  assert.equal((await del(`/api/shares/passport/${id}`, cookies.owner)).status, 200);
+  const page = await get(`/p/${id}`);
+  assert.equal(page.status, 404);
+  assert.equal((await page.text()).includes('og:image'), false);
+  assert.equal((await get(`/p/${id}.png`)).status, 404, 'the cached card is not served');
+  assert.equal((await del(`/api/shares/passport/${id}`, cookies.owner)).status, 404, 'twice is a 404');
+  const list = await (await get('/api/shares', cookies.owner)).json();
+  assert.equal(list.passports.some((p) => p.id === id), false);
+});
+
+test('a crawl link can be taken back too, and never shows its tag', async () => {
+  const trip = await (await post('/api/trips', { title: 'Delete me', stops: [{ id: 'x', name: 'Stop' }] }, cookies.owner)).json();
+  const { shareId } = await (await post(`/api/trips/${trip.item.id}/share`, {}, cookies.owner)).json();
+  const read = await (await get(`/api/shared-crawl/${shareId}`)).json();
+  assert.equal(read.crawl.owner, undefined);
+  assert.equal(read.crawl.userId, undefined);
+
+  assert.equal((await get(`/c/${shareId}.png`)).status, 200);
+  assert.equal((await del(`/api/shares/crawl/${shareId}`, cookies.u2)).status, 404);
+  assert.equal((await del(`/api/shares/crawl/${shareId}`, cookies.owner)).status, 200);
+
+  const page = await get(`/c/${shareId}`);
+  assert.equal(page.status, 404);
+  assert.equal((await page.text()).includes('og:image'), false);
+  assert.equal((await get(`/c/${shareId}.png`)).status, 404);
+  assert.equal((await get(`/api/shared-crawl/${shareId}`)).status, 404);
+});
+
+test('a share made before owner tags existed cannot be deleted by anyone', async () => {
+  await store.put('shared_crawls', 's_legacy', { title: 'Old', stops: [], by: 'Erik', createdAt: '2026-09-01T00:00:00Z' });
+  assert.equal((await del('/api/shares/crawl/s_legacy', cookies.owner)).status, 404);
+  assert.equal((await get('/api/shared-crawl/s_legacy')).status, 200, 'and still works');
+  assert.equal((await del('/api/shares/nonsense/x', cookies.owner)).status, 404);
+});
