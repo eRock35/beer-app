@@ -6,6 +6,7 @@ import { forbidden, notFound, parse, wrap } from '../lib/http.js';
 import { requireUser } from '../auth.js';
 import { AXIS_KEYS, snobScore, verdict } from '../domain/scoring.js';
 import { familyOf } from '../domain/styles.js';
+import { NO_NAME, publicName } from '../domain/cards.js';
 
 const scoreShape = z.object(
   Object.fromEntries(AXIS_KEYS.map((k) => [k, z.number().min(0).max(10).optional()]))
@@ -58,8 +59,10 @@ async function hydrate(pours, viewerId) {
   const store = getStore();
   const userIds = [...new Set(pours.map((p) => p.userId))];
   const users = await Promise.all(userIds.map((id) => store.get('users', id)));
+  // publicName, never the stored name as-is: older rows carry the email's
+  // local part as their display name, and this goes out on the public feed.
   const nameById = new Map(
-    users.filter(Boolean).map((u) => [u.id, { displayName: u.displayName, id: u.id }])
+    users.filter(Boolean).map((u) => [u.id, { displayName: publicName(u), id: u.id }])
   );
 
   return Promise.all(
@@ -68,13 +71,34 @@ async function hydrate(pours, viewerId) {
       const comments = await store.count('comments', { where: [['pourId', '==', p.id]] });
       return {
         ...p,
-        author: nameById.get(p.userId) || { displayName: 'Someone', id: p.userId },
+        author: nameById.get(p.userId) || { displayName: NO_NAME, id: p.userId },
         cheerCount: cheers.length,
         cheered: viewerId ? cheers.some((c) => c.userId === viewerId) : false,
         commentCount: comments,
       };
     })
   );
+}
+
+/**
+ * A comment's author name is drawn from the commenter's row as it is now,
+ * not the name stored with the comment: comments written before 2026-09-27
+ * stored the display name as it was, which could be the email's local part.
+ */
+async function namedComments(comments) {
+  if (!comments.length) return comments;
+  const store = getStore();
+  const ids = [...new Set(comments.map((c) => c.userId))];
+  const users = new Map((await Promise.all(ids.map((id) => store.get('users', id)))).filter(Boolean).map((u) => [u.id, u]));
+  return comments.map((c) => ({ ...c, authorName: publicName(users.get(c.userId)) }));
+}
+
+/** A private pour is a 404 to everyone but its owner - reading it, cheering
+ *  it or commenting on it alike. Otherwise an id would confirm it exists. */
+async function visiblePour(id, viewerId) {
+  const pour = await getStore().get('pours', id);
+  if (!pour || (pour.visibility === 'private' && pour.userId !== viewerId)) throw notFound('No such pour.');
+  return pour;
 }
 
 export const pourRouter = Router();
@@ -138,15 +162,13 @@ pourRouter.get(
   '/:id',
   wrap(async (req, res) => {
     const store = getStore();
-    const pour = await store.get('pours', req.params.id);
-    if (!pour) throw notFound('No such pour.');
-    if (pour.visibility === 'private' && pour.userId !== req.user?.id) throw notFound('No such pour.');
+    const pour = await visiblePour(req.params.id, req.user?.id);
     const comments = await store.query('comments', {
       where: [['pourId', '==', pour.id]],
       orderBy: 'createdAt',
       direction: 'asc',
     });
-    res.json({ pour: (await hydrate([pour], req.user?.id))[0], comments });
+    res.json({ pour: (await hydrate([pour], req.user?.id))[0], comments: await namedComments(comments) });
   })
 );
 
@@ -190,8 +212,7 @@ pourRouter.post(
   requireUser,
   wrap(async (req, res) => {
     const store = getStore();
-    const pour = await store.get('pours', req.params.id);
-    if (!pour) throw notFound('No such pour.');
+    const pour = await visiblePour(req.params.id, req.user.id);
     const existing = await store.query('cheers', {
       where: [['pourId', '==', pour.id], ['userId', '==', req.user.id]],
       limit: 1,
@@ -216,12 +237,11 @@ pourRouter.post(
   wrap(async (req, res) => {
     const body = parse(z.object({ body: z.string().trim().min(1).max(1000) }), req.body);
     const store = getStore();
-    const pour = await store.get('pours', req.params.id);
-    if (!pour) throw notFound('No such pour.');
+    const pour = await visiblePour(req.params.id, req.user.id);
     const comment = await store.put('comments', newId('c_'), {
       pourId: pour.id,
       userId: req.user.id,
-      authorName: req.user.displayName,
+      authorName: publicName(req.user),
       body: body.body,
       createdAt: new Date().toISOString(),
     });

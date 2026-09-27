@@ -2,6 +2,12 @@ node_modules
 **/node_modules
 web/dist
 data
+# Local SQLite databases (dev pours, users, password hashes) must never be
+# baked into an image. `data` above only matches the top-level folder.
+server/data
+**/*.sqlite
+**/*.sqlite-*
+**/*.db
 .git
 .github
 *.md

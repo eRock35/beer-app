@@ -24,7 +24,10 @@ export function AppProvider({ children }) {
   // What the server says about the shared domain account: whether this
   // deployment honours it, where it is managed, and whether THIS session came
   // in through it.
-  const [account, setAccount] = useState({ sharedSignIn: false, sharedAccount: false, accountUrl: null });
+  // `sharedLink` is set when the shared account's address already has its own
+  // Hopscotch account that is not linked to it yet: the sign-in screen then
+  // asks for that account's password once, instead of signing straight in.
+  const [account, setAccount] = useState({ sharedSignIn: false, sharedAccount: false, accountUrl: null, sharedLink: null });
   const [reference, setReference] = useState(null);
   const [booting, setBooting] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'system');
@@ -48,6 +51,7 @@ export function AppProvider({ children }) {
           sharedSignIn: Boolean(me.sharedSignIn),
           sharedAccount: Boolean(me.sharedAccount),
           accountUrl: me.accountUrl || null,
+          sharedLink: me.sharedLink?.required ? { email: me.sharedLink.email } : null,
         });
         setReference(ref);
       } catch {
@@ -73,6 +77,13 @@ export function AppProvider({ children }) {
     return u;
   }, []);
 
+  const linkShared = useCallback(async (password) => {
+    const { user: u } = await api.linkShared({ password });
+    setUser(u);
+    setAccount((a) => ({ ...a, sharedAccount: true, sharedLink: null }));
+    return u;
+  }, []);
+
   const logout = useCallback(async () => {
     await api.logout();
     setUser(null);
@@ -94,11 +105,12 @@ export function AppProvider({ children }) {
       setTheme,
       login,
       register,
+      linkShared,
       logout,
       saveProfile,
       aiEnabled: Boolean(reference?.aiEnabled),
     }),
-    [user, account, reference, booting, theme, login, register, logout, saveProfile]
+    [user, account, reference, booting, theme, login, register, linkShared, logout, saveProfile]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -22,6 +22,30 @@ import { sharesRouter } from './routes/shares.js';
 import { AXES } from './domain/scoring.js';
 import { FLAVOUR_TAGS, STYLES, STYLE_FAMILIES } from './domain/styles.js';
 
+/** Express matches routes case-insensitively and with a trailing slash, so
+ *  the parser skip has to as well. */
+const SCAN_PATH = /^\/api\/ai\/scan\/?$/i;
+
+/**
+ * Baseline headers on every response, API and SPA alike.
+ *
+ * frame-ancestors, not X-Frame-Options: the landing page at
+ * strongtechnicalconsulting.com shows the app in an iframe as a live preview
+ * (its tour mode), and X-Frame-Options cannot name another origin. There is
+ * no script-src policy yet: index.html loads the tour and beacon scripts and
+ * the map pulls tiles from elsewhere, and a policy that has not been tried
+ * against the built app in a browser would break it quietly.
+ */
+function securityHeaders(_req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "frame-ancestors 'self' https://strongtechnicalconsulting.com https://www.strongtechnicalconsulting.com"
+  );
+  next();
+}
+
 async function main() {
   await initStore();
 
@@ -29,10 +53,14 @@ async function main() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(compression());
+  app.use(securityHeaders);
   // Photos go to /api/ai/scan as base64, so that one route needs more headroom
-  // than everything else. The client downscales first; this is the ceiling.
-  app.use('/api/ai/scan', express.json({ limit: '8mb' }));
-  app.use(express.json({ limit: '1mb' }));
+  // than everything else. Its 8 MB parser is on the route itself (routes/ai.js),
+  // AFTER requireUser and the quota check, so a signed-out request's body is
+  // never read. This app-wide 1 MB parser stays off that path, or it would
+  // refuse the photo before the route's own parser got to it.
+  const json1mb = express.json({ limit: '1mb' });
+  app.use((req, res, next) => (SCAN_PATH.test(req.path) ? next() : json1mb(req, res, next)));
   app.use(cookieParser());
 
   // Auth attempts get a tighter budget than ordinary browsing.

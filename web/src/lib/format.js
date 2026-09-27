@@ -63,3 +63,18 @@ export function drinkWindowState(bottle, today = new Date()) {
   if (drinkFrom || drinkBy) return { key: 'ready', label: 'In its window', tone: 'var(--good)' };
   return { key: 'unknown', label: 'No window set', tone: 'var(--text-muted)' };
 }
+
+/**
+ * `value` if it is an http(s) URL, else ''. For links built from data other
+ * people wrote (a brewery's website from Open Brewery DB): React does not
+ * block a `javascript:` href, it only warns. The server already filters these;
+ * this is the second lock.
+ */
+export function httpUrl(value) {
+  try {
+    const url = new URL(String(value ?? '').trim());
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}

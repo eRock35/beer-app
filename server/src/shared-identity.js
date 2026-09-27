@@ -115,35 +115,77 @@ async function whoIs(raw) {
 }
 
 /**
- * The Hopscotch user behind a shared session, or null.
- *
- * This does NOT move Hopscotch's data onto identity. Pours, cellars and trips
- * are keyed by this app's own `u_...` ids, and rekeying live data to gain a
- * second sign-in door would be a migration with nothing to gain. Identity says
- * WHO; the local row stays the thing everything is keyed by, matched on email.
- * Same split trip-planner settled on.
- *
- * First sight of an address creates the local row, because the alternative is
- * telling someone who signed in correctly that they have no account here - and
- * Hopscotch's own registration would then refuse the address as taken.
+ * Who the shared-domain cookie on this request belongs to, as the identity
+ * service tells it: `{ uid, email, displayName }`, or null. Exported for the
+ * link route, which needs the identity without a Hopscotch row.
  */
-export async function userFromSharedSession(req) {
+export async function sharedIdentity(req) {
   if (!sharedSignInEnabled()) return null;
   const raw = req.cookies?.[COOKIE];
   if (!raw) return null;
-
   const identity = await whoIs(raw);
   if (!identity) return null;
-  const email = String(identity.email || '').toLowerCase();
-  if (!email) return null;
+  const email = String(identity.email || '').trim().toLowerCase();
+  const uid = String(identity.uid || '').trim();
+  // No uid, no sign-in: the uid is what a row is linked by (see below), and
+  // an answer without one is not one this code knows how to trust.
+  if (!email || !uid) return null;
+  return { uid, email, displayName: String(identity.displayName || '').trim() };
+}
+
+/**
+ * The Hopscotch user behind a shared session.
+ *
+ * Returns `{ user }`, `{ linkRequired: { email } }`, or null.
+ *
+ * This does NOT move Hopscotch's data onto identity. Pours, cellars and trips
+ * are keyed by this app's own `u_...` ids; identity says WHO, and the local
+ * row carries that identity's `identityUid`.
+ *
+ * ## Linked by uid, never by email alone (2026-09-27)
+ *
+ * This used to hand the shared session whichever local row had the same
+ * email. The identity service does not verify that an address belongs to the
+ * person who registers it, so anyone could register someone else's address
+ * there and walk into their Hopscotch account - private pours, cellar, trips.
+ * Now:
+ *
+ *  - A row whose `identityUid` is this identity's uid is theirs. Matched by
+ *    uid, so a change of case in the email does not matter.
+ *  - No row with this email at all: a fresh one is created, carrying the uid.
+ *    Nothing to take over, and the alternative is telling someone who signed
+ *    in correctly that they have no account here.
+ *  - A row with this email made by the shared door before the uid was stored
+ *    (`fromSharedAccount`, no password): linked now. It was only ever
+ *    reachable through this same address on the shared account, so linking it
+ *    grants nothing new - and it has no password to link it with.
+ *  - A Hopscotch account with its own password and no link: NOT signed in.
+ *    Proving an address to the identity service proves nothing about who made
+ *    this account. The page offers "link it" instead, which takes this
+ *    account's Hopscotch password once (POST /api/auth/link-shared).
+ *  - A row linked to a DIFFERENT identity uid: nobody.
+ */
+export async function resolveSharedSession(req) {
+  const identity = await sharedIdentity(req);
+  if (!identity) return null;
 
   const store = getStore();
-  const [existing] = await store.query(USERS, { where: [['email', '==', email]], limit: 1 });
-  if (existing) return existing;
+  const [linked] = await store.query(USERS, { where: [['identityUid', '==', identity.uid]], limit: 1 });
+  if (linked) return { user: linked };
 
-  return store.put(USERS, newId('u_'), {
-    email,
-    displayName: identity.displayName || email.split('@')[0],
+  const [byEmail] = await store.query(USERS, { where: [['email', '==', identity.email]], limit: 1 });
+  if (byEmail) {
+    if (byEmail.identityUid) return null;
+    if (byEmail.fromSharedAccount && !byEmail.passwordHash) {
+      return { user: await store.patch(USERS, byEmail.id, { identityUid: identity.uid }) };
+    }
+    return { linkRequired: { email: identity.email } };
+  }
+
+  const user = await store.put(USERS, newId('u_'), {
+    email: identity.email,
+    // Never the email's local part: this name is shown on the public feed.
+    displayName: identity.displayName.slice(0, 60),
     // No passwordHash on purpose. This account signs in on the shared
     // password or passkey; leaving the field unset means Hopscotch's own
     // /login cannot be used against it, rather than being open to an empty
@@ -151,8 +193,10 @@ export async function userFromSharedSession(req) {
     homeCity: '', homeState: '', homeBreweryName: '', homeBreweryId: '',
     whiteWhaleBrewery: '', units: 'imperial',
     fromSharedAccount: true,
+    identityUid: identity.uid,
     createdAt: new Date().toISOString(),
   });
+  return { user };
 }
 
 /**

@@ -259,7 +259,8 @@ test('a shared crawl link carries og tags and a card', async () => {
   assert.ok(html.includes('<div id="root"></div>'), 'still the SPA');
   assert.match(html, new RegExp(`<meta property="og:image" content="http://127\\.0\\.0\\.1:${PORT}/c/${shareId}\\.png">`));
   assert.match(html, /<meta name="twitter:card" content="summary_large_image">/);
-  assert.match(html, /<meta property="og:description" content="Erik Strong shared a crawl: 2 stops in Portland, Oregon\./);
+  // The first word of the display name, as a passport share has it (shareName).
+  assert.match(html, /<meta property="og:description" content="Erik shared a crawl: 2 stops in Portland, Oregon\./);
   assert.equal(html.includes('<script>alert'), false);
   assert.equal(html.includes('<img src=x'), false);
   assert.equal((html.match(/<title>/g) || []).length, 1, 'the title was replaced, not broken out of');

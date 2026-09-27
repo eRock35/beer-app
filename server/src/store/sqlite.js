@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { planReservation } from './reserve.js';
 
 const OPS = {
   '==': '=',
@@ -108,6 +109,33 @@ export function createSqliteStore({ filePath }) {
       const w = buildWhere(where);
       const row = db.prepare(`SELECT COUNT(*) AS n FROM ${table(collection)}${w.sql}`).get(...w.params);
       return row?.n ?? 0;
+    },
+
+    /**
+     * Atomic counters with ceilings: every entry is checked, and either all of
+     * them move or none does. See reserveCounters() in ./index.js for the
+     * contract. better-sqlite3 is synchronous, so the read and the write
+     * cannot interleave with another request in this process, and IMMEDIATE
+     * takes the write lock up front so a second process cannot either.
+     */
+    async reserve(entries) {
+      const run = db.transaction((list) => {
+        const docs = list.map((e) => {
+          const row = db.prepare(`SELECT doc FROM ${table(e.collection)} WHERE id = ?`).get(e.id);
+          return row ? JSON.parse(row.doc) : null;
+        });
+        const plan = planReservation(list, docs);
+        if (!plan.ok) return plan;
+        plan.writes.forEach((w, i) => {
+          db.prepare(
+            `INSERT INTO ${table(list[i].collection)} (id, doc) VALUES (?, ?)
+             ON CONFLICT(id) DO UPDATE SET doc = excluded.doc`
+          ).run(list[i].id, JSON.stringify(w));
+        });
+        return plan;
+      });
+      const { writes, ...result } = run.immediate(entries);
+      return result;
     },
 
     async close() {

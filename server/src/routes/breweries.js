@@ -41,6 +41,22 @@ async function fetchJson(url, { timeoutMs = 8000 } = {}) {
   }
 }
 
+/**
+ * A brewery's website, or '' - only ever an http(s) URL. Open Brewery DB is
+ * community-edited and the page renders this as a link, so a
+ * `javascript:` or `data:` value would run in our origin when tapped.
+ */
+export function safeWebsite(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Open Brewery DB gives us strings; the map needs numbers and a stable shape. */
 function normalise(raw) {
   const lat = Number(raw.latitude);
@@ -55,7 +71,7 @@ function normalise(raw) {
     postalCode: raw.postal_code || '',
     country: raw.country || '',
     phone: raw.phone || '',
-    website: raw.website_url || '',
+    website: safeWebsite(raw.website_url),
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
   };

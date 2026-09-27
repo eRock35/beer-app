@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import Anthropic from '@anthropic-ai/sdk';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
@@ -14,6 +14,7 @@ import {
   SCAN_SYSTEM,
 } from '../domain/vision.js';
 import { searchWeb } from '../domain/research.js';
+import { aiQuotaPreflight, reserveAiCalls } from '../lib/ai-quota.js';
 
 /**
  * The API key lives only in this process. The browser never sees it, never
@@ -32,24 +33,14 @@ function anthropic() {
   return client;
 }
 
-/** Per-user daily cap, so one runaway tab cannot drain the account. */
-async function checkQuota(userId, cost = 1) {
-  const store = getStore();
-  const day = new Date().toISOString().slice(0, 10);
-  const id = `${userId}_${day}`;
-  const row = (await store.get('ai_usage', id)) || { userId, day, count: 0 };
-  if (row.count + cost > config.aiDailyMessageLimit) {
-    throw new HttpError(
-      429,
-      `You have used today's ${config.aiDailyMessageLimit} sommelier requests. It resets at midnight UTC.`
-    );
-  }
-  await store.put('ai_usage', id, {
-    ...row,
-    count: row.count + cost,
-    updatedAt: new Date().toISOString(),
-  });
-  return config.aiDailyMessageLimit - row.count - cost;
+/**
+ * Takes `cost` requests from the account's daily allowance AND the day's
+ * ceiling across everyone, atomically, or throws a 429 and takes nothing.
+ * Call it after the input is validated and before any model call. Returns
+ * what is left of the account's allowance. (lib/ai-quota.js has the rules.)
+ */
+async function checkQuota(user, cost = 1) {
+  return reserveAiCalls(user, cost);
 }
 
 /**
@@ -127,7 +118,7 @@ async function drinkerContext(user) {
     .map((p) => `${p.beerName} — ${p.brewery || '?'} (${p.style})${p.score != null ? ` ${p.score}/100` : ''}`);
 
   const lines = [
-    `Drinker: ${user.displayName}.`,
+    user.displayName ? `Drinker: ${user.displayName}.` : null,
     user.homeCity ? `Home base: ${user.homeCity}${user.homeState ? `, ${user.homeState}` : ''}.` : null,
     user.homeBreweryName ? `Their regular: ${user.homeBreweryName}.` : null,
     user.whiteWhaleBrewery ? `Brewery they chase: ${user.whiteWhaleBrewery}.` : null,
@@ -160,7 +151,21 @@ aiRouter.get('/status', (_req, res) => {
   res.json({ enabled: config.aiEnabled, model: config.aiEnabled ? config.anthropicModel : null });
 });
 
-aiRouter.use(requireUser);
+/**
+ * Every route below calls the model, so all of them are signed-in only, and
+ * all of them first ask whether there is anything left to spend today - the
+ * sommelier being off, the account's allowance or the day's ceiling spent -
+ * before reading a large body or building context. The binding count is
+ * checkQuota() inside each route.
+ */
+aiRouter.use(
+  requireUser,
+  wrap(async (req, _res, next) => {
+    anthropic();
+    await aiQuotaPreflight(req.user);
+    next();
+  })
+);
 
 const chatInput = z.object({
   messages: z
@@ -189,7 +194,7 @@ aiRouter.post(
   wrap(async (req, res) => {
     const body = parse(chatInput, req.body);
     anthropic();
-    const remaining = await checkQuota(req.user.id);
+    const remaining = await checkQuota(req.user);
 
     const profile = await drinkerContext(req.user);
     const situational = [
@@ -213,7 +218,10 @@ aiRouter.post(
     try {
       const stream = anthropic().messages.stream({
         model: config.anthropicModel,
-        max_tokens: 64000,
+        // A sommelier's answer is a few short paragraphs (the prompt says so);
+        // this was 64000, which let one question buy a small book. 4000 still
+        // leaves room for adaptive thinking plus a long itinerary.
+        max_tokens: 4000,
         thinking: { type: 'adaptive' },
         output_config: { effort: 'medium' },
         system: [
@@ -278,7 +286,7 @@ aiRouter.post(
   '/polish-notes',
   wrap(async (req, res) => {
     const body = parse(polishInput, req.body);
-    await checkQuota(req.user.id);
+    await checkQuota(req.user);
 
     const scoreLine = body.scores
       ? AXES.map((a) => (body.scores[a.key] != null ? `${a.label} ${body.scores[a.key]}/10` : null))
@@ -320,7 +328,7 @@ aiRouter.post(
   '/trip-plan',
   wrap(async (req, res) => {
     const body = parse(tripInput, req.body);
-    await checkQuota(req.user.id);
+    await checkQuota(req.user);
     const profile = await drinkerContext(req.user);
 
     const stopList = body.breweries.length
@@ -361,7 +369,7 @@ aiRouter.post(
   '/next-pour',
   wrap(async (req, res) => {
     const body = parse(pairInput, req.body);
-    await checkQuota(req.user.id);
+    await checkQuota(req.user);
     const profile = await drinkerContext(req.user);
 
     const text = await oneShot({
@@ -393,10 +401,13 @@ const scanInput = z.object({
  */
 aiRouter.post(
   '/scan',
+  // The 8 MB parser is mounted here rather than app-wide so it only runs
+  // after requireUser and the quota preflight above: a stranger's photo is
+  // never read. index.js keeps the global 1 MB parser off this path.
+  express.json({ limit: '8mb' }),
   wrap(async (req, res) => {
     const body = parse(scanInput, req.body);
     anthropic();
-    const remaining = await checkQuota(req.user.id, 1);
     let mediaType;
     let data;
     try {
@@ -404,6 +415,8 @@ aiRouter.post(
     } catch (err) {
       throw new HttpError(err.status || 400, err.message);
     }
+    // After the photo is known to be readable, so a bad file costs nothing.
+    const remaining = await checkQuota(req.user, 1);
 
     const response = await callClaude(() =>
       anthropic().messages.parse({
@@ -459,7 +472,7 @@ aiRouter.post(
   wrap(async (req, res) => {
     const body = parse(lookupInput, req.body);
     anthropic();
-    await checkQuota(req.user.id, 2);
+    await checkQuota(req.user, 2);
 
     const { text, sources, searched } = await callClaude(() =>
       searchWeb(anthropic(), {

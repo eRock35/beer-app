@@ -198,17 +198,41 @@ export function crawlSvg(d) {
   return frame(out, { footRight: 'Plan your own' });
 }
 
+export const NO_NAME = 'A Hopscotch drinker';
+
+/**
+ * True when a display name is really the email address, or its local part.
+ * Registration and the shared-account door used to fill an empty name with
+ * the local part (until 2026-09-27), so rows from before then carry one;
+ * those count as no name at all wherever a name leaves the server.
+ */
+export function nameIsEmail(user) {
+  const raw = String(user?.displayName ?? '').trim();
+  const local = String(user?.email || '').split('@')[0].toLowerCase();
+  return !raw || raw.includes('@') || Boolean(local && raw.toLowerCase() === local);
+}
+
+/**
+ * The name the feed, comments and anything else other people read show for
+ * someone: their display name in full, or "A Hopscotch drinker" when they
+ * have none that is not their address. Not trimmed to Latin: the feed is
+ * HTML, not a card with a Latin-only font.
+ */
+export function publicName(user) {
+  if (!user || nameIsEmail(user)) return NO_NAME;
+  return String(user.displayName).trim().slice(0, 60);
+}
+
 /**
  * The name a share carries: the first word of the display name, or "A
- * Hopscotch drinker". Never the email - and registration fills an empty
- * display name with the email's local part, so a name equal to that (or with
- * an @ in it) counts as no name at all.
+ * Hopscotch drinker". Never the email: a name equal to its local part (or
+ * with an @ in it) counts as no name at all - see nameIsEmail().
  */
 export function shareName(user) {
-  const fallback = 'A Hopscotch drinker';
+  const fallback = NO_NAME;
   const raw = latin(user?.displayName);
   const local = String(user?.email || '').split('@')[0].toLowerCase();
-  if (!raw || raw.includes('@') || (local && raw.toLowerCase() === local)) return fallback;
+  if (!raw || nameIsEmail(user) || (local && raw.toLowerCase() === local)) return fallback;
   const first = raw.split(' ')[0].replace(/[^\p{L}\p{N}'’.-]/gu, '').slice(0, 24);
   return first || fallback;
 }

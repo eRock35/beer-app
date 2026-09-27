@@ -147,8 +147,12 @@ and labels.
 The Claude integration is **entirely server-side**. The API key is read from
 `ANTHROPIC_API_KEY` in the server process and never leaves it — it is not in the
 bundle, not in any response, and not reachable from the browser. Every AI route
-sits behind `requireUser`, so an anonymous visitor cannot spend your tokens, and
-there is a per-user daily message cap (`AI_DAILY_MESSAGE_LIMIT`, default 60).
+sits behind `requireUser`, so an anonymous visitor cannot spend your tokens.
+Because registration is open, what bounds the bill is a daily ceiling across
+every account (`AI_DAILY_GLOBAL_LIMIT`, default 400 requests per UTC day), on
+top of a per-account cap (`AI_DAILY_MESSAGE_LIMIT`, default 60; an account in
+its first day gets `AI_NEW_ACCOUNT_DAILY_LIMIT`, default 10). Both are taken
+in one transaction before the model is called.
 
 **With no key set, the app runs completely normally** and reports the sommelier
 as switched off. Nothing else degrades.

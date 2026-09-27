@@ -5,6 +5,7 @@ import { newId } from '../lib/ids.js';
 import { badRequest, forbidden, notFound, parse, wrap } from '../lib/http.js';
 import { requireUser } from '../auth.js';
 import { ownerTag } from '../lib/share-owner.js';
+import { NO_NAME, shareName } from '../domain/cards.js';
 
 /**
  * Three small owned-list resources — wishlist, cellar, trips — share the same
@@ -191,7 +192,9 @@ tripRouter.post(
       totalWalkMinutes: trip.totalWalkMinutes ?? null,
       walkable: trip.walkable ?? null,
       itinerary: trip.itinerary || '',
-      by: req.user.displayName || 'someone',
+      // shareName, like a passport share: the first word of a chosen name,
+      // never the email's local part (which older rows carry as their name).
+      by: shareName(req.user),
       owner: ownerTag(req.user.id),
       createdAt: new Date().toISOString(),
     });
@@ -199,6 +202,18 @@ tripRouter.post(
     res.status(201).json({ shareId, url: `${req.protocol}://${req.get('host')}/c/${shareId}` });
   })
 );
+
+/**
+ * The name a shared crawl shows. Shares made before 2026-09-27 froze the
+ * display name as it was, which could be the email's local part. The oldest
+ * of them still carry the maker's userId, so theirs is worked out again from
+ * the account; later ones carry only the owner tag, which cannot be turned
+ * back into an account, and keep what they froze.
+ */
+export async function crawlByline(crawl) {
+  if (!crawl?.userId) return crawl?.by || NO_NAME;
+  return shareName(await getStore().get('users', crawl.userId));
+}
 
 /** Open to anyone with the link - that is what a share is. Mounted outside the
  *  owned-resource routers so it never sees requireUser. */
@@ -212,6 +227,6 @@ sharedCrawlRouter.get(
     res.set('Cache-Control', 'public, max-age=60');
     // Neither who made it (userId, on the oldest shares) nor the owner tag.
     const { userId, owner, ...safe } = crawl;
-    res.json({ crawl: safe });
+    res.json({ crawl: { ...safe, by: await crawlByline(crawl) } });
   })
 );

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
@@ -8,6 +9,7 @@ import { badRequest, forbidden, HttpError, notFound, parse, wrap } from '../lib/
 import { requireUser } from '../auth.js';
 import { anthropic, callClaude, checkQuota } from './ai.js';
 import { DISPATCH_SCHEMA, searchWeb } from '../domain/research.js';
+import { reserveGlobalAiCalls } from '../lib/ai-quota.js';
 
 const watchSchema = z.object({
   kind: z.enum(['brewery', 'style', 'anything']).default('brewery'),
@@ -156,6 +158,17 @@ async function persistFinds(userId, watch, result) {
 
 export const dispatchRouter = Router();
 
+/**
+ * Constant-time check of the cron header. Both sides are hashed first, so
+ * the comparison is always between two 32-byte buffers: timingSafeEqual
+ * needs equal lengths, and comparing lengths first would leak the length.
+ */
+export function cronSecretMatches(given) {
+  if (!config.cronSecret || typeof given !== 'string' || !given) return false;
+  const digest = (v) => crypto.createHash('sha256').update(v).digest();
+  return crypto.timingSafeEqual(digest(given), digest(config.cronSecret));
+}
+
 /* ---- the cron entry point sits before requireUser, guarded by its own secret ---- */
 
 /**
@@ -168,7 +181,7 @@ dispatchRouter.post(
   '/cron',
   wrap(async (req, res) => {
     if (!config.cronSecret) throw new HttpError(503, 'No CRON_SECRET configured on this deployment.');
-    if (req.get('x-cron-secret') !== config.cronSecret) throw forbidden('Bad cron secret.');
+    if (!cronSecretMatches(req.get('x-cron-secret'))) throw forbidden('Bad cron secret.');
     if (!config.aiEnabled) throw new HttpError(503, 'The sommelier is off, so there is nothing to scan with.');
 
     const store = getStore();
@@ -185,7 +198,15 @@ dispatchRouter.post(
     const deferred = ordered.length - watches.length;
 
     const report = [];
+    let ceilingReached = false;
     for (const watch of watches) {
+      // The sweep bills no user, but it spends the same key: it counts against
+      // the day's ceiling across everyone (lib/ai-quota.js), and stops when
+      // that is spent. What is left is scanned oldest-first next time.
+      if (!(await reserveGlobalAiCalls(3))) {
+        ceilingReached = true;
+        break;
+      }
       try {
         const user = await store.get('users', watch.userId);
         const result = await runWatch(watch, user);
@@ -199,10 +220,14 @@ dispatchRouter.post(
       }
     }
 
+    const skipped = watches.length - report.length;
+    if (ceilingReached) {
+      console.warn(`[hopscotch] dispatch sweep stopped at the daily AI ceiling; ${skipped} watch(es) left`);
+    }
     if (deferred > 0) {
       console.warn(`[hopscotch] dispatch sweep capped at ${cap}; ${deferred} watch(es) deferred`);
     }
-    res.json({ scanned: watches.length, deferred, cap, report });
+    res.json({ scanned: report.length, deferred: deferred + skipped, cap, ceilingReached, report });
   })
 );
 
@@ -285,7 +310,7 @@ dispatchRouter.post(
 
     anthropic();
     // A scan is a search pass plus a structuring pass.
-    await checkQuota(req.user.id, 3);
+    await checkQuota(req.user, 3);
 
     const result = await runWatch(watch, req.user);
     const fresh = await persistFinds(req.user.id, watch, result);

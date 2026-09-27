@@ -3,6 +3,64 @@ import { useApp } from '../store.jsx';
 import { Banner, Field, FormGroup, Spinner } from '../components/ui.jsx';
 import { GlassIcon } from '../components/icons.jsx';
 
+/**
+ * Signed in on the shared account, whose address already has a Hopscotch
+ * account of its own. The shared sign-in does not open that account by
+ * itself - the identity service never checked who owns the address - so the
+ * Hopscotch password is asked for once, and after that the shared sign-in
+ * opens it directly.
+ */
+function LinkShared({ email }) {
+  const { linkShared } = useApp();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await linkShared(password);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 12 }}>
+        <Banner kind="info">
+          You are signed in to the other apps as <strong>{email}</strong>, and there is already a
+          Hopscotch account with that address. Enter its Hopscotch password once to link the two -
+          after that, the one sign-in opens it. If you never made a Hopscotch account, someone else
+          may have used your address here; do not link it.
+        </Banner>
+      </div>
+      <FormGroup>
+        <Field label="Hopscotch password" id="link-password">
+          <input
+            id="link-password"
+            className="input"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            enterKeyHint="done"
+          />
+        </Field>
+      </FormGroup>
+      {error && <div style={{ marginBottom: 12 }}><Banner kind="error">{error}</Banner></div>}
+      <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy}>
+        {busy ? <Spinner /> : 'Link and sign in'}
+      </button>
+    </form>
+  );
+}
+
 export function AuthGate({ feature = 'this' }) {
   const { login, register, account } = useApp();
   const [mode, setMode] = useState('login');
@@ -38,6 +96,8 @@ export function AuthGate({ feature = 'this' }) {
           mark a pour public.
         </p>
       </div>
+
+      {account.sharedLink && <LinkShared email={account.sharedLink.email} />}
 
       <form onSubmit={submit}>
         <FormGroup>

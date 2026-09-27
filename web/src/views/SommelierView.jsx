@@ -158,7 +158,7 @@ export function SommelierView({ go }) {
         }
       >
         It can see your journal, your cellar and your wishlist — so ask it things that depend on
-        those. Signed in as {user.displayName}.
+        those. Signed in as {user.displayName || user.email}.
       </PageTitle>
 
       <div className="chat">

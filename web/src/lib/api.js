@@ -36,6 +36,7 @@ export const api = {
   login: (body) => request('/auth/login', { method: 'POST', body }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   me: () => request('/auth/me'),
+  linkShared: (body) => request('/auth/link-shared', { method: 'POST', body }),
   updateProfile: (body) => request('/auth/me', { method: 'PATCH', body }),
 
   searchBreweries: (params, signal) => request(`/breweries/search${qs(params)}`, { signal }),

@@ -190,6 +190,53 @@ can now be deleted by their maker (and what deletion cannot recall), and the
 crowd aggregates are public surfaces; `strongtechnicalconsulting.com/privacy`
 should describe them.
 
+## Audit fixes: the shared-account door, model spend, names (2026-09-27)
+
+A read-only audit found these; `test/shared-account.test.js`,
+`test/ai-quota.test.js` and `test/security.test.js` hold them.
+
+- **The shared account links by identity uid, never by email alone.** The
+  identity service does not verify that an address belongs to whoever
+  registers it, so matching its session onto the local row with the same
+  email let anyone register someone's address there and become them here.
+  `resolveSharedSession()` in `shared-identity.js`: a row whose `identityUid`
+  matches signs in; no row with that email creates one carrying the uid; a
+  shared-door row from before (`fromSharedAccount`, no password) is linked on
+  sight; a Hopscotch account **with its own password** is NOT signed in - the
+  page asks for that password once (`POST /api/auth/link-shared`, which needs
+  both the shared session and the password) and `/api/auth/me` says
+  `sharedLink.required`. The reverse (a native account squatting someone's
+  address) now shows its owner the link prompt rather than capturing them.
+  Refusing native registration for an address the identity service already
+  holds was **not** done: that service has no way to ask, by design (it never
+  says whether an address has an account).
+- **Model spend is bounded across everyone.** `lib/ai-quota.js`: per account
+  per UTC day (`AI_DAILY_MESSAGE_LIMIT` 60; `AI_NEW_ACCOUNT_DAILY_LIMIT` 10 in
+  an account's first 24 hours - there is no email verification, so age is
+  the only signal) and one ceiling across all accounts
+  (`AI_DAILY_GLOBAL_LIMIT` 400), which the dispatch sweep also counts
+  against. Both are taken in one transaction (`store.reserve()`, both
+  drivers; the rule is `store/reserve.js`) - the old read-then-write let
+  parallel requests pass the cap. A cheap preflight refuses a spent day
+  before an 8 MB photo is read; the binding check sits after input
+  validation and before any model call. Chat `max_tokens` 64000 -> 4000.
+- **No name is ever an email.** Registration and the shared door no longer
+  fill an empty display name with the local part. `publicName()` (feed,
+  comments) and `shareName()` (crawl and passport shares) treat a stored name
+  equal to the local part as none. Old comments are re-named from the account
+  on read, as are the oldest crawl shares (those still carrying `userId`);
+  crawl shares from between those and today froze their name and keep it.
+- Cheers and comments on a private pour 404 like reading it; brewery
+  websites are http(s) or nothing (server and page); the 8 MB parser runs
+  after `requireUser`; the cron secret is compared in constant time; login
+  runs a bcrypt compare when there is no account; `.dockerignore` drops
+  `server/data` and SQLite files; every response gets `nosniff`,
+  `Referrer-Policy` and a CSP of `frame-ancestors` only (the landing page
+  frames the app; no `script-src` until one is tried against the built app).
+- Register still says an address is taken. Without a mail sender a
+  successful registration signs you straight in, so success itself tells
+  you the address was free; a vaguer refusal would hide nothing.
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

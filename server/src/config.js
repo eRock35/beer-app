@@ -11,6 +11,11 @@ const fromPackageRoot = (p) => (path.isAbsolute(p) ? p : path.resolve(packageRoo
 const bool = (v, dflt = false) =>
   v === undefined ? dflt : ['1', 'true', 'yes', 'on'].includes(String(v).toLowerCase());
 
+const positiveInt = (v, dflt) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : dflt;
+};
+
 const isProd = process.env.NODE_ENV === 'production';
 
 /**
@@ -60,7 +65,15 @@ export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() || '',
   anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-opus-5',
   aiEnabled: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
-  aiDailyMessageLimit: Number(process.env.AI_DAILY_MESSAGE_LIMIT || 60),
+  // Model-call allowances, in requests per UTC day (see lib/ai-quota.js).
+  // Per account once it is a day old; per account in its first day; and one
+  // ceiling across every account, which is what actually bounds the bill
+  // when registration is open. Anything but a positive integer falls back to
+  // the default - there is deliberately no "unlimited" setting.
+  aiDailyMessageLimit: positiveInt(process.env.AI_DAILY_MESSAGE_LIMIT, 60),
+  aiNewAccountDailyLimit: positiveInt(process.env.AI_NEW_ACCOUNT_DAILY_LIMIT, 10),
+  aiNewAccountHours: positiveInt(process.env.AI_NEW_ACCOUNT_HOURS, 24),
+  aiDailyGlobalLimit: positiveInt(process.env.AI_DAILY_GLOBAL_LIMIT, 400),
   // Shared secret for the scheduled dispatch sweep. Unset means the endpoint
   // refuses every caller, which is the right default.
   cronSecret: process.env.CRON_SECRET?.trim() || '',

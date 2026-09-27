@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { getStore } from '../store/index.js';
 import { crawlSvg, passportSvg, x } from '../domain/cards.js';
 import { createPngCache, png } from '../lib/png.js';
+import { crawlByline } from './collections.js';
 
 /**
  * The public faces of a share link, served outside /api because they are
@@ -171,7 +172,8 @@ export function sharePages({ dist }) {
       const id = req.params[0];
       const crawl = await getStore().get('shared_crawls', id);
       if (!crawl) return notHere(res);
-      return sendPng(res, `c:${id}`, () => crawlSvg(crawl));
+      const by = await crawlByline(crawl);
+      return sendPng(res, `c:${id}`, () => crawlSvg({ ...crawl, by }));
     } catch (err) {
       return next(err);
     }
@@ -191,6 +193,7 @@ export function sharePages({ dist }) {
       const crawl = CRAWL_ID.test(id) ? await getStore().get('shared_crawls', id) : null;
       res.set('Cache-Control', 'no-cache');
       if (!crawl) return res.status(404).type('html').send(html);
+      crawl.by = await crawlByline(crawl);
       const title = `${crawl.title || 'A crawl'} · Hopscotch`;
       const tags = ogTags({
         title,

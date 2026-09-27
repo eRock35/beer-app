@@ -3,14 +3,23 @@ import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { getStore } from './store/index.js';
 import { unauthorized } from './lib/http.js';
-import { userFromSharedSession } from './shared-identity.js';
+import { resolveSharedSession } from './shared-identity.js';
 
 export async function hashPassword(plain) {
   return bcrypt.hash(plain, 12);
 }
 
+/** A hash of nothing in particular, compared against when there is no real
+ *  one, so "no such account" takes as long as "wrong password". Made once,
+ *  lazily, at the same cost factor as real hashes. */
+let dummyHash;
+const dummy = () => (dummyHash ??= bcrypt.hash('hopscotch-timing-equaliser', 12));
+
 export async function checkPassword(plain, hash) {
-  if (!hash) return false;
+  if (!hash) {
+    await bcrypt.compare(String(plain ?? ''), await dummy());
+    return false;
+  }
   return bcrypt.compare(plain, hash);
 }
 
@@ -66,10 +75,15 @@ export async function attachUser(req, _res, next) {
     // to the shared account rather than giving up here.
   }
   try {
-    const shared = await userFromSharedSession(req);
-    if (shared) {
-      req.user = shared;
+    const shared = await resolveSharedSession(req);
+    if (shared?.user) {
+      req.user = shared.user;
       req.viaSharedAccount = true;
+    } else if (shared?.linkRequired) {
+      // Signed in on the shared account, but its address belongs to a
+      // Hopscotch account that has not been linked to it. Anonymous here;
+      // /api/auth/me tells the page so it can offer the link.
+      req.sharedLinkRequired = shared.linkRequired;
     }
   } catch (err) {
     // The identity database being unreachable must not take Hopscotch down

@@ -15,7 +15,7 @@ import {
   SlidersIcon,
   StarIcon,
 } from '../components/icons.jsx';
-import { distanceLabel, placeLine } from '../lib/format.js';
+import { distanceLabel, httpUrl, placeLine } from '../lib/format.js';
 import { PourForm } from './PourForm.jsx';
 import { BreweryCrowd } from '../components/crowd.jsx';
 
@@ -537,8 +537,8 @@ export function MapView() {
               >
                 <MapPinIcon /> Directions
               </a>
-              {selected.website && (
-                <a className="btn btn-secondary" href={selected.website} target="_blank" rel="noopener">
+              {httpUrl(selected.website) && (
+                <a className="btn btn-secondary" href={httpUrl(selected.website)} target="_blank" rel="noopener noreferrer">
                   <ArrowUpRightIcon /> Website
                 </a>
               )}

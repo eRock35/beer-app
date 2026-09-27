@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { getStore } from '../store/index.js';
 import { newId } from '../lib/ids.js';
 import { badRequest, HttpError, parse, wrap } from '../lib/http.js';
-import { clearSharedSessionCookie, sharedSignInEnabled, ACCOUNT_URL } from '../shared-identity.js';
+import { clearSharedSessionCookie, sharedIdentity, sharedSignInEnabled, ACCOUNT_URL } from '../shared-identity.js';
 import {
   checkPassword,
   clearSessionCookie,
@@ -40,7 +40,9 @@ authRouter.post(
 
     const user = await store.put('users', newId('u_'), {
       email,
-      displayName: body.displayName || email.split('@')[0],
+      // Empty rather than the email's local part: the display name is shown
+      // on the public feed, and an address is not a name someone chose.
+      displayName: body.displayName || '',
       passwordHash: await hashPassword(body.password),
       homeCity: '',
       homeState: '',
@@ -65,8 +67,10 @@ authRouter.post(
       where: [['email', '==', body.email.toLowerCase()]],
       limit: 1,
     });
-    // Same message either way — don't confirm which emails exist.
-    const ok = user && (await checkPassword(body.password, user.passwordHash));
+    // Same message either way — don't confirm which emails exist. And the
+    // same time: with no account (or one with no password), checkPassword
+    // still runs a bcrypt compare, so the answer does not come back faster.
+    const ok = (await checkPassword(body.password, user?.passwordHash)) && Boolean(user);
     if (!ok) throw new HttpError(401, 'Email or password is wrong.');
 
     setSessionCookie(res, issueToken(user));
@@ -96,8 +100,42 @@ authRouter.get('/me', (req, res) => {
     // does not hold.
     sharedAccount: Boolean(req.viaSharedAccount),
     accountUrl: sharedSignInEnabled() ? ACCOUNT_URL : null,
+    // Signed in on the shared account with an address that already has its
+    // own Hopscotch account, not yet linked. The page asks for that account's
+    // password once (POST /link-shared). The address is the viewer's own.
+    sharedLink: req.sharedLinkRequired && !req.user
+      ? { required: true, email: req.sharedLinkRequired.email }
+      : null,
   });
 });
+
+/**
+ * Link the shared account to the Hopscotch account with the same address.
+ *
+ * Needs BOTH proofs: a live shared session (who the identity service says
+ * this is) and the Hopscotch account's own password (that the person owns
+ * this account, which the identity service never checked). After this, the
+ * shared session signs straight in, matched by identity uid.
+ */
+authRouter.post(
+  '/link-shared',
+  wrap(async (req, res) => {
+    const body = parse(z.object({ password: z.string().min(1).max(200) }), req.body);
+    const identity = await sharedIdentity(req);
+    if (!identity) throw new HttpError(401, 'Sign in with the shared account first.');
+
+    const store = getStore();
+    const [row] = await store.query('users', { where: [['email', '==', identity.email]], limit: 1 });
+    const ok = await checkPassword(body.password, row?.passwordHash);
+    if (!row || !ok) throw new HttpError(401, 'That is not the password for the Hopscotch account.');
+    if (row.identityUid && row.identityUid !== identity.uid) {
+      throw new HttpError(409, 'That Hopscotch account is already linked to a different sign-in.');
+    }
+
+    const user = row.identityUid ? row : await store.patch('users', row.id, { identityUid: identity.uid });
+    res.json({ user: publicUser(user), sharedAccount: true });
+  })
+);
 
 const profilePatch = z.object({
   displayName: z.string().trim().min(1).max(60).optional(),

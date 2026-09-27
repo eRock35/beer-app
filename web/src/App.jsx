@@ -173,7 +173,7 @@ function Shell() {
               onClick={() => go('account')}
             >
               <PersonIcon />
-              {user.displayName}
+              {user.displayName || 'Account'}
             </button>
           ) : (
             <button type="button" className="btn btn-primary btn-sm" onClick={() => go('journal')}>
@@ -234,7 +234,7 @@ function Shell() {
                 key={t.id}
                 icon={<t.Icon />}
                 title={t.label}
-                subtitle={t.id === 'account' && user ? user.displayName : undefined}
+                subtitle={t.id === 'account' && user ? user.displayName || user.email : undefined}
                 onClick={() => go(t.id)}
                 aria-current={t.id === tab.id ? 'page' : undefined}
               />
