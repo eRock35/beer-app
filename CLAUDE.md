@@ -237,6 +237,19 @@ A read-only audit found these; `test/shared-account.test.js`,
   successful registration signs you straight in, so success itself tells
   you the address was free; a vaguer refusal would hide nothing.
 
+## iPhone app (2026-10-03)
+
+Hopscotch ships as an iPhone app too: a Capacitor shell around the live site,
+built in `eRock35/eriks-projects`'s `mobile/` (its README is the guide). This
+repo's part is `/.well-known/apple-app-site-association`
+(`appleAppSiteAssociation` in `server/src/index.js`, mounted right after the
+security headers, ahead of the parsers, the `/api` limiter and the SPA
+fallback): applinks for everything but `/api/*` (so a shared crawl or passport
+link opens the app), webcredentials for the app, from `APPLE_TEAM_ID` read per
+request (404 when unset; the Team ID is never written here).
+`server/test/aasa.test.js` holds it. Before a public App Store listing,
+Hopscotch's own accounts need an in-app delete (guideline 5.1.1).
+
 ## Commit and PR conventions
 
 **Never put a Claude session link in anything pushed to GitHub.** No

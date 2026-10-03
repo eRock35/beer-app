@@ -46,6 +46,39 @@ function securityHeaders(_req, res, next) {
   next();
 }
 
+/**
+ * The iPhone app's association file (eriks-projects/mobile/README.md): it lets
+ * a link to this site - a shared crawl, a passport card - open the app
+ * (applinks), and lets the app's web view use the passwords saved for this
+ * site (webcredentials). Apple fetches it with no cookie and follows no
+ * redirect, so it is mounted ahead of everything that could get in the way.
+ * Every path but /api/* opens in the app.
+ *
+ * The Team ID is read from APPLE_TEAM_ID on each request and is never written
+ * in this public repo. Unset or malformed, the file does not exist (404), so
+ * nothing wrong is ever published.
+ */
+export function appleAppSiteAssociation(_req, res) {
+  const team = String(process.env.APPLE_TEAM_ID || '').trim();
+  if (!/^[A-Z0-9]{10}$/.test(team)) return res.status(404).json({ error: 'No such file.' });
+  const appID = `${team}.com.strongtechnicalconsulting.hopscotch`;
+  res.set('Cache-Control', 'public, max-age=3600');
+  return res.json({
+    applinks: {
+      details: [
+        {
+          appIDs: [appID],
+          components: [
+            { '/': '/api/*', exclude: true, comment: 'The API is never a page.' },
+            { '/': '*' },
+          ],
+        },
+      ],
+    },
+    webcredentials: { apps: [appID] },
+  });
+}
+
 async function main() {
   await initStore();
 
@@ -54,6 +87,7 @@ async function main() {
   app.disable('x-powered-by');
   app.use(compression());
   app.use(securityHeaders);
+  app.get('/.well-known/apple-app-site-association', appleAppSiteAssociation);
   // Photos go to /api/ai/scan as base64, so that one route needs more headroom
   // than everything else. Its 8 MB parser is on the route itself (routes/ai.js),
   // AFTER requireUser and the quota check, so a signed-out request's body is
