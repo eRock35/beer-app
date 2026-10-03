@@ -87,3 +87,15 @@ test('read per request', async () => {
   const body = await (await get(PATH)).json();
   assert.deepEqual(body.webcredentials.apps, ['ZZZZZ99999.com.strongtechnicalconsulting.hopscotch']);
 });
+
+test('"Get the iPhone app": the TestFlight link, or null, with no sign-in', async () => {
+  delete process.env.TESTFLIGHT_URL;
+  let r = await get('/ios-app.json');
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { name: 'Hopscotch', url: null });
+  process.env.TESTFLIGHT_URL = 'https://testflight.apple.com/join/AbCd1234';
+  assert.equal((await (await get('/ios-app.json')).json()).url, 'https://testflight.apple.com/join/AbCd1234');
+  process.env.TESTFLIGHT_URL = 'javascript:alert(1)';
+  assert.equal((await (await get('/ios-app.json')).json()).url, null);
+  delete process.env.TESTFLIGHT_URL;
+});

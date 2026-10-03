@@ -79,6 +79,21 @@ export function appleAppSiteAssociation(_req, res) {
   });
 }
 
+/**
+ * "Get the iPhone app" (eriks-projects/shared/get-app.js): the bar on an
+ * iPhone asks this for the TestFlight public link. It comes from the
+ * TESTFLIGHT_URL setting, unset until Apple approves a build for external
+ * testing; anything that is not exactly such a link answers null and the bar
+ * stays hidden. Mounted next to the association file, ahead of the SPA's
+ * catch-all.
+ */
+const TESTFLIGHT_LINK = /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]{4,20}$/;
+export function iosApp(_req, res) {
+  const url = String(process.env.TESTFLIGHT_URL || '').trim();
+  res.set('Cache-Control', 'public, max-age=300');
+  return res.json({ name: 'Hopscotch', url: TESTFLIGHT_LINK.test(url) ? url : null });
+}
+
 async function main() {
   await initStore();
 
@@ -88,6 +103,7 @@ async function main() {
   app.use(compression());
   app.use(securityHeaders);
   app.get('/.well-known/apple-app-site-association', appleAppSiteAssociation);
+  app.get('/ios-app.json', iosApp);
   // Photos go to /api/ai/scan as base64, so that one route needs more headroom
   // than everything else. Its 8 MB parser is on the route itself (routes/ai.js),
   // AFTER requireUser and the quota check, so a signed-out request's body is

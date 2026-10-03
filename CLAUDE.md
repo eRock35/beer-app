@@ -248,7 +248,10 @@ fallback): applinks for everything but `/api/*` (so a shared crawl or passport
 link opens the app), webcredentials for the app, from `APPLE_TEAM_ID` read per
 request (404 when unset; the Team ID is never written here).
 `server/test/aasa.test.js` holds it. Before a public App Store listing,
-Hopscotch's own accounts need an in-app delete (guideline 5.1.1).
+Hopscotch's own accounts need an in-app delete (guideline 5.1.1). `GET /ios-app.json`, mounted beside it, answers the TestFlight public
+link from `TESTFLIGHT_URL` for the "Get the iPhone app" bar
+(`web/public/get-app.js`, synced from `eriks-projects/shared/`), or null,
+which hides the bar. Unset until Apple approves a build for external testing.
 
 ## Commit and PR conventions
 
