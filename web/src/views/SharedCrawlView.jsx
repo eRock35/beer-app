@@ -112,7 +112,7 @@ export function SharedCrawlView({ shareId }) {
             >
               <span
                 className="muted tabular"
-                style={{ width: 20, fontWeight: 700, fontSize: 14, flex: '0 0 auto' }}
+                style={{ width: 20, fontWeight: 700, fontSize: 15, flex: '0 0 auto' }}
               >
                 {i + 1}
               </span>

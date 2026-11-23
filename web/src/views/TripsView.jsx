@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp, useAsync } from '../store.jsx';
 import { Banner, Confirm, Empty, ErrorState, Field, FormGroup, LoadingList, Sheet, Spinner, useToast } from '../components/ui.jsx';
@@ -11,13 +11,17 @@ import { placeLine } from '../lib/format.js';
  * free evenings and want the good stops in walking order, not a list of
  * everything within fifty miles.
  */
-export function TripsView() {
+export function TripsView({ action }) {
   const { aiEnabled, user } = useApp();
   const toast = useToast();
   // Signed out there is nothing to list and no point asking - the planner
   // below works without an account.
   const { data, loading, error, reload } = useAsync(() => api.list('trips'), [user], { enabled: Boolean(user) });
-  const [planning, setPlanning] = useState(false);
+  // #trips/new arrives with the planner already open: one tap from home.
+  const [planning, setPlanning] = useState(action === 'new');
+  useEffect(() => {
+    if (action === 'new') setPlanning(true);
+  }, [action]);
   const trips = data?.items || [];
 
   return (
@@ -102,7 +106,7 @@ export function TripsView() {
               <ol className="list-reset" style={{ margin: '12px 0 0', display: 'grid' }}>
                 {trip.stops.map((stop, i) => (
                   <li key={`${stop.id || stop.name}-${i}`} style={{ display: 'flex', gap: 12, alignItems: 'baseline', padding: '8px 0', borderTop: i ? '1px solid var(--sep)' : 0 }}>
-                    <span className="muted tabular" style={{ width: 20, fontWeight: 700, fontSize: 14, flex: '0 0 auto' }}>{i + 1}</span>
+                    <span className="muted tabular" style={{ width: 20, fontWeight: 700, fontSize: 15, flex: '0 0 auto' }}>{i + 1}</span>
                     <span style={{ minWidth: 0 }}>
                       <span style={{ fontWeight: 600, fontSize: 16, display: 'block' }}>{stop.name}</span>
                       {stop.walkMinutes != null && (
@@ -389,7 +393,7 @@ function TripPlanner({ user, aiEnabled, onSaved, onError }) {
 
       {step === 'route' && route && (
         <div>
-          <div className="card card-tight" style={{ marginBottom: 14, background: 'var(--fill)', boxShadow: 'none' }}>
+          <div className="note" style={{ marginBottom: 16 }}>
             <strong className="tabular">{route.totalMiles} mi total</strong>
             <span className="secondary"> · about {route.totalWalkMinutes} min on foot · </span>
             <span style={{ color: route.walkable ? 'var(--good)' : 'var(--warning)', fontWeight: 600 }}>
@@ -426,7 +430,7 @@ function TripPlanner({ user, aiEnabled, onSaved, onError }) {
           )}
 
           {itinerary && (
-            <div className="card card-tight" style={{ marginTop: 14, whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: 15, background: 'var(--fill)', boxShadow: 'none', userSelect: 'text', WebkitUserSelect: 'text' }}>
+            <div className="note" style={{ marginTop: 16, whiteSpace: 'pre-wrap', lineHeight: 1.55, fontSize: 15, userSelect: 'text', WebkitUserSelect: 'text' }}>
               {itinerary}
             </div>
           )}

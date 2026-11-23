@@ -219,7 +219,7 @@ export function PassportView({ go }) {
                     <div className="progress">
                       <div className="progress-fill" style={{ width: `${badge.pct}%` }} />
                     </div>
-                    <div className="muted tabular" style={{ fontSize: 12, marginTop: 4 }}>
+                    <div className="muted tabular" style={{ fontSize: 13, marginTop: 4 }}>
                       {badge.progress} / {badge.goal}
                     </div>
                   </>

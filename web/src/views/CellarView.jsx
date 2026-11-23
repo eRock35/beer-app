@@ -101,7 +101,7 @@ export function CellarView() {
                     {[bottle.brewery, bottle.style].filter(Boolean).join(' · ')}
                     {bottle.abv ? ` · ${bottle.abv}%` : ''}
                   </p>
-                  <p style={{ margin: '6px 0 0', fontSize: 14, fontWeight: 600, color: window.tone, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <p style={{ margin: '6px 0 0', fontSize: 15, fontWeight: 600, color: window.tone, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     {window.key === 'drink-now' && <ClockIcon size={16} />}
                     {window.key === 'past' && <AlertIcon size={16} />}
                     {window.label}

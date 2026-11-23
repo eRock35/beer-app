@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useApp, useAsync } from '../store.jsx';
 import { Confirm, Empty, ErrorState, LoadingList, ScorePill, Sheet, useToast } from '../components/ui.jsx';
@@ -8,11 +8,15 @@ import { AxisBars } from '../components/charts.jsx';
 import { PourForm } from './PourForm.jsx';
 import { relativeDate, placeLine } from '../lib/format.js';
 
-export function JournalView() {
+export function JournalView({ action }) {
   const { reference } = useApp();
   const toast = useToast();
   const [filters, setFilters] = useState({ q: '', family: '', minScore: '' });
-  const [adding, setAdding] = useState(false);
+  // #journal/new arrives with the form already open: one tap from home.
+  const [adding, setAdding] = useState(action === 'new');
+  useEffect(() => {
+    if (action === 'new') setAdding(true);
+  }, [action]);
   const [editing, setEditing] = useState(null);
 
   const { data, loading, error, reload } = useAsync(() => api.pours({ limit: 500 }), []);
@@ -55,7 +59,7 @@ export function JournalView() {
         yours; only pours you mark public reach the feed.
       </PageTitle>
 
-      <div className="card card-tight" style={{ marginBottom: 14 }}>
+      <div className="filters">
         <div className="row">
           <div style={{ position: 'relative', flex: '1 1 100%' }}>
             <SearchIcon size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--label-3)', pointerEvents: 'none' }} />
