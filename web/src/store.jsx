@@ -5,7 +5,7 @@ const AppContext = createContext(null);
 
 const THEME_KEY = 'hopscotch:theme';
 
-const THEME_COLOURS = { light: '#f5f3ee', dark: '#121211' };
+const THEME_COLOURS = { light: '#ffffff', dark: '#000000' };
 
 function applyTheme(theme) {
   if (theme === 'system') document.documentElement.removeAttribute('data-theme');

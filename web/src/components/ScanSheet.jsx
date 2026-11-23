@@ -198,7 +198,7 @@ export function ScanSheet({ onApply, onClose }) {
               </span>
             </p>
             {identified?.notes && (
-              <p className="secondary" style={{ fontSize: 14, margin: '6px 0 0' }}>{identified.notes}</p>
+              <p className="secondary" style={{ fontSize: 15, margin: '6px 0 0' }}>{identified.notes}</p>
             )}
           </section>
 
@@ -211,13 +211,13 @@ export function ScanSheet({ onApply, onClose }) {
               {appearance?.score != null && (
                 <span className="score-pill" style={{ '--tone': 'var(--series-1)' }}>
                   {appearance.score}
-                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>/10</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, marginLeft: 2 }}>/10</span>
                 </span>
               )}
             </div>
 
             {appearance?.score == null ? (
-              <p className="secondary" style={{ fontSize: 14, margin: '10px 0 0' }}>
+              <p className="secondary" style={{ fontSize: 15, margin: '10px 0 0' }}>
                 No poured beer visible, so there is nothing to score. Photograph the glass to get an
                 appearance score.
               </p>
@@ -234,7 +234,7 @@ export function ScanSheet({ onApply, onClose }) {
                   <div style={{ marginTop: 14 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                       <span className="label">Haziness</span>
-                      <span className="tabular" style={{ fontWeight: 700, fontSize: 14 }}>
+                      <span className="tabular" style={{ fontWeight: 700, fontSize: 15 }}>
                         {appearance.clarity}
                       </span>
                     </div>
@@ -251,7 +251,7 @@ export function ScanSheet({ onApply, onClose }) {
                 )}
 
                 {appearance.reasoning && (
-                  <p className="secondary" style={{ fontSize: 14, margin: '12px 0 0', lineHeight: 1.6 }}>
+                  <p className="secondary" style={{ fontSize: 15, margin: '12px 0 0', lineHeight: 1.6 }}>
                     {appearance.reasoning}
                   </p>
                 )}

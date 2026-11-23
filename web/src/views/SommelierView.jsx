@@ -165,7 +165,7 @@ export function SommelierView({ go }) {
         <div className="chat-log" ref={logRef} aria-live="polite" aria-atomic="false">
           {messages.length === 0 && (
             <div style={{ padding: '4px 0 8px' }}>
-              <p className="secondary" style={{ fontSize: 14, margin: '0 0 8px' }}>Try one of these:</p>
+              <p className="secondary" style={{ fontSize: 15, margin: '0 0 8px' }}>Try one of these:</p>
               <div className="prompt-suggestions">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} type="button" className="chip chip-toggle" onClick={() => send(s)}>
@@ -189,7 +189,7 @@ export function SommelierView({ go }) {
 
           {error && <Banner kind="error">{error}</Banner>}
 
-          <p className="muted" style={{ fontSize: 12, margin: '8px 0 0', textAlign: 'center' }}>
+          <p className="muted" style={{ fontSize: 13, margin: '8px 0 0', textAlign: 'center' }}>
             Taprooms close and recipes get retired — check before you drive somewhere on its word.
           </p>
         </div>

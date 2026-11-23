@@ -10,8 +10,9 @@ substitutions:
   _SERVICE: hopscotch
   _REPO: hopscotch
   _JWT_SECRET_NAME: hopscotch-jwt-secret
-  _ANTHROPIC_SECRET_NAME: hopscotch-anthropic-key
-  _CRON_SECRET_NAME: hopscotch-cron-secret
+  # The two shared with the other apps on this project, by design.
+  _ANTHROPIC_SECRET_NAME: anthropic-api-key
+  _CRON_SECRET_NAME: cron-secret
   _DATABASE_ID: hopscotch
 
 options:

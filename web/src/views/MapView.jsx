@@ -11,7 +11,9 @@ import {
   LocationIcon,
   MapPinIcon,
   PhoneIcon,
+  PlusIcon,
   SearchIcon,
+  SignpostIcon,
   SlidersIcon,
   StarIcon,
 } from '../components/icons.jsx';
@@ -46,18 +48,43 @@ const TYPE_LABELS = {
 
 const SHEET_SIZES = ['peek', 'half', 'full'];
 
+/**
+ * A first visit should show what the app does, not an empty map of a
+ * continent. Until someone searches, the map opens on one good beer town,
+ * says plainly that it is an example, and remembers the last real search
+ * after that (in this browser only - nothing is sent anywhere).
+ */
+const EXAMPLE = { place: 'Asheville, NC', lat: 35.5954, lng: -82.5508 };
+const LAST_KEY = 'hopscotch:last-search';
+
+function readLast() {
+  try {
+    const last = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+    return last && Number.isFinite(last.lat) && Number.isFinite(last.lng) ? last : null;
+  } catch {
+    return null;
+  }
+}
+function writeLast(last) {
+  try {
+    localStorage.setItem(LAST_KEY, JSON.stringify(last));
+  } catch {
+    // Private windows may refuse storage; the map still works.
+  }
+}
+
 function pinIcon(state) {
-  const { colour, icon } = PIN_STATES[state];
+  const { icon } = PIN_STATES[state];
   return L.divIcon({
     className: '',
-    html: `<div class="pin" style="background:${colour};color:${colour}"><span>${icon}</span></div>`,
+    html: `<div class="pin pin-${state}"><span>${icon}</span></div>`,
     iconSize: [26, 26],
     iconAnchor: [13, 26],
     popupAnchor: [0, -24],
   });
 }
 
-export function MapView() {
+export function MapView({ go }) {
   const { user } = useApp();
   const phone = usePhone();
   const mapRef = useRef(null);
@@ -65,7 +92,11 @@ export function MapView() {
   const markerLayer = useRef(null);
 
   const [query, setQuery] = useState('');
-  const [place, setPlace] = useState(user?.homeCity ? placeLine(user.homeCity, user.homeState) : '');
+  const [place, setPlace] = useState(() =>
+    user?.homeCity ? placeLine(user.homeCity, user.homeState) : readLast()?.place || ''
+  );
+  // True while the pins on show are the example town rather than a search.
+  const [isExample, setIsExample] = useState(false);
   const [breweries, setBreweries] = useState([]);
   const [centre, setCentre] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -109,9 +140,10 @@ export function MapView() {
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return undefined;
     const isPhone = window.matchMedia('(max-width: 767px)').matches;
+    const opening = readLast() || EXAMPLE;
     const map = L.map(containerRef.current, { zoomControl: false, attributionControl: true }).setView(
-      [39.5, -96],
-      4
+      [opening.lat, opening.lng],
+      12
     );
     // On a phone the floating search sits top-left and the list sheet covers
     // the bottom, so the zoom control goes top-right where neither reaches.
@@ -140,8 +172,27 @@ export function MapView() {
     return () => clearTimeout(t);
   }, [sheetSize, phone]);
 
+  /**
+   * Centre the map on a point. On a phone the search bar covers the top of
+   * the map and the list sheet the bottom, so "centre" means the middle of
+   * what is left - otherwise the pins open half-hidden behind the list.
+   */
+  const centreOn = useCallback((lat, lng, zoom, options) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+      map.setView([lat, lng], zoom, options);
+      return;
+    }
+    const height = map.getSize().y;
+    const sheet = containerRef.current?.closest('.map-shell')?.querySelector('.map-sheet');
+    const covered = Math.min(sheet ? sheet.getBoundingClientRect().height : 0, height * 0.6);
+    const shifted = map.project([lat, lng], zoom).add([0, (covered - 68) / 2]);
+    map.setView(map.unproject(shifted, zoom), zoom, options);
+  }, []);
+
   const search = useCallback(
-    async ({ near, lat, lng, q } = {}) => {
+    async ({ near, lat, lng, q, example = false } = {}) => {
       setLoading(true);
       setError('');
       try {
@@ -149,29 +200,39 @@ export function MapView() {
           near: near ?? (lat == null ? place : ''),
           lat,
           lng,
-          q: q ?? query,
-          type: typeFilter,
+          q: example ? '' : q ?? query,
+          type: example ? '' : typeFilter,
           perPage: 60,
         });
         setBreweries(data.breweries);
         setCentre(data.centre);
-        if (data.centre && mapRef.current) {
-          mapRef.current.setView([data.centre.lat, data.centre.lng], data.breweries.length ? 12 : 9);
+        setIsExample(example);
+        if (data.centre) {
+          centreOn(data.centre.lat, data.centre.lng, data.breweries.length ? 12 : 9);
+          if (!example && data.breweries.length) {
+            writeLast({ place: lat == null ? near ?? place : '', lat: data.centre.lat, lng: data.centre.lng });
+          }
         }
-        if (!data.breweries.length) setError('Nothing found there. Try a bigger city or a different spelling.');
+        if (!data.breweries.length && !example) setError('Nothing found there. Try a bigger city or a different spelling.');
       } catch (err) {
-        setError(err.message);
+        // The example is a courtesy: if it cannot load, the plain prompt shows instead.
+        if (!example) setError(err.message);
         setBreweries([]);
       } finally {
         setLoading(false);
       }
     },
-    [place, query, typeFilter]
+    [place, query, typeFilter, centreOn]
   );
 
-  // First load: home city if we know one, otherwise wait for the user.
+  // First load: home city if we know one, then wherever this browser last
+  // searched, then the example town - never an empty map.
   useEffect(() => {
+    const last = readLast();
     if (user?.homeCity) search({ near: placeLine(user.homeCity, user.homeState) });
+    else if (last?.place) search({ near: last.place });
+    else if (last) search({ lat: last.lat, lng: last.lng });
+    else search({ near: EXAMPLE.place, example: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.homeCity]);
 
@@ -209,7 +270,7 @@ export function MapView() {
       });
       marker.bindPopup(
         `<strong>${escapeHtml(brewery.name)}</strong><br>` +
-          `<span style="color:var(--text-secondary)">${escapeHtml(
+          `<span class="popup-meta">${escapeHtml(
             [TYPE_LABELS[brewery.type] || brewery.type, placeLine(brewery.city, brewery.state)]
               .filter(Boolean)
               .join(' · ')
@@ -222,7 +283,7 @@ export function MapView() {
 
   const focus = (brewery) => {
     setSelected(brewery);
-    mapRef.current?.setView([brewery.lat, brewery.lng], 15, { animate: true });
+    centreOn(brewery.lat, brewery.lng, 15, { animate: true });
   };
 
   const toggleWishlist = async (brewery) => {
@@ -271,14 +332,50 @@ export function MapView() {
       {Object.entries(PIN_STATES).map(([key, meta]) => (
         <span className="legend-item" key={key}>
           <span className="legend-swatch" style={{ background: meta.colour }} aria-hidden="true" />
-          {meta.label} ({counts[key]})
+          {meta.label} <span className="tabular">({counts[key]})</span>
         </span>
       ))}
     </div>
   );
 
+  // Home is where the main jobs start. A visitor is told what this is and
+  // given the one thing they can try without an account; someone signed in
+  // gets the two things they open the app to do, one tap away.
+  const intro = user ? (
+    <div className="map-quick">
+      <div className="map-actions">
+        <button type="button" className="btn btn-primary" onClick={() => go('journal/new')}>
+          <PlusIcon /> Log a pour
+        </button>
+        <button type="button" className="btn" onClick={() => go('trips/new')}>
+          <SignpostIcon /> Plan a crawl
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="map-intro">
+      <h2>Find good beer wherever you land.</h2>
+      <p>Every brewery on a map, a tasting journal that scores like a judge, and a crawl planner for your free evenings.</p>
+      <div className="map-actions">
+        <button type="button" className="btn btn-primary" onClick={() => go('trips/new')}>
+          <SignpostIcon /> Plan a crawl
+        </button>
+        <button type="button" className="btn" onClick={() => go('journal')}>
+          Sign in
+        </button>
+      </div>
+    </div>
+  );
+
+  const exampleNote = isExample && breweries.length > 0 && (
+    <p className="map-example">
+      An example to look around: {EXAMPLE.place}. Search any city, or use your location, to see your own.
+    </p>
+  );
+
   const list = (
     <>
+      {exampleNote}
       {breweries.map((brewery) => {
         const state = stateOf(brewery);
         return (
@@ -294,14 +391,14 @@ export function MapView() {
               style={{ background: PIN_STATES[state].colour, color: PIN_STATES[state].colour }}
               aria-hidden="true"
             />
-            <span style={{ minWidth: 0, flex: 1 }}>
+            <span className="brewery-row-text">
               <span className="brewery-row-name">{brewery.name}</span>
               <span className="brewery-row-meta">
                 {[TYPE_LABELS[brewery.type] || brewery.type, placeLine(brewery.city, brewery.state)]
                   .filter(Boolean)
                   .join(' · ')}
               </span>
-              <span className="brewery-row-meta muted">
+              <span className="brewery-row-meta">
                 {PIN_STATES[state].label}
                 {brewery.distanceMiles != null && ` · ${distanceLabel(brewery.distanceMiles)}`}
               </span>
@@ -314,7 +411,7 @@ export function MapView() {
       })}
 
       {!loading && !breweries.length && !error && (
-        <div className="empty" style={{ padding: '28px 20px' }}>
+        <div className="empty">
           <span className="empty-icon" aria-hidden="true">
             <CompassIcon />
           </span>
@@ -326,9 +423,9 @@ export function MapView() {
         </div>
       )}
       {loading && !breweries.length && (
-        <div style={{ padding: 16 }} className="stack" aria-busy="true">
+        <div style={{ padding: '16px 0' }} className="stack" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton" style={{ height: 56 }} />
+            <div key={i} className="skeleton" style={{ height: 48 }} />
           ))}
         </div>
       )}
@@ -377,12 +474,12 @@ export function MapView() {
                 </select>
               </Field>
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
+              <div className="map-search-actions">
+                <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? <Spinner /> : 'Search'}
                 </button>
-                <IconButton label="Use my location" className="icon-btn-fill" style={{ width: 44, height: 44 }} onClick={nearMe} disabled={loading}>
-                  <LocationIcon />
+                <IconButton label="Use my location" onClick={nearMe} disabled={loading}>
+                  <LocationIcon size={20} strokeWidth={1.5} />
                 </IconButton>
               </div>
             </form>
@@ -391,7 +488,10 @@ export function MapView() {
             {legend}
           </div>
 
-          <div style={{ flex: 1 }}>{list}</div>
+          <div className="map-list">
+            {intro}
+            {list}
+          </div>
         </aside>
       )}
 
@@ -404,14 +504,14 @@ export function MapView() {
           <div className="map-float">
             <form onSubmit={submitSearch} role="search">
               <div className="search-wrap">
-                <SearchIcon className="search-icon" size={18} />
+                <SearchIcon className="search-icon" size={18} strokeWidth={1.5} />
                 <input
                   id="map-place"
                   className="input"
                   type="search"
                   value={place}
                   onChange={(e) => setPlace(e.target.value)}
-                  placeholder="City, town or hotel address"
+                  placeholder="City or address"
                   aria-label="Where are you?"
                   autoComplete="off"
                   autoCapitalize="words"
@@ -420,10 +520,10 @@ export function MapView() {
                 />
               </div>
               <IconButton label="Use my location" onClick={nearMe} disabled={loading}>
-                <LocationIcon />
+                <LocationIcon size={22} strokeWidth={1.5} />
               </IconButton>
               <IconButton label="Filters" onClick={() => setFiltersOpen(true)}>
-                <SlidersIcon />
+                <SlidersIcon size={22} strokeWidth={1.5} />
               </IconButton>
             </form>
           </div>
@@ -434,21 +534,25 @@ export function MapView() {
                 <span className="grabber" aria-hidden="true" />
               </button>
               <div className="map-sheet-title">
-                <h2>
+                <h2 className="tabular">
                   {breweries.length
-                    ? `${breweries.length} ${breweries.length === 1 ? 'brewery' : 'breweries'}`
+                    ? `${breweries.length} ${breweries.length === 1 ? 'brewery' : 'breweries'}${isExample ? ` in ${EXAMPLE.place}` : ''}`
                     : 'Breweries'}
                 </h2>
-                {loading ? <Spinner label="Searching" /> : (
-                  <span className="muted" style={{ fontSize: 12 }}>
+                {/* The map's credit. Leaflet's own control is hidden on a phone
+                    (it sits under this sheet), so this line is the attribution. */}
+                <span className="map-credit">
+                  {loading && <Spinner label="Searching" />}
+                  <span>
                     © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
                   </span>
-                )}
+                </span>
               </div>
               {legend}
             </div>
             <div className="map-sheet-body">
-              {error && <div style={{ padding: '12px 16px 0' }}><Banner kind="error">{error}</Banner></div>}
+              {intro}
+              {error && <div style={{ padding: '12px 0 0' }}><Banner kind="error">{error}</Banner></div>}
               {list}
             </div>
           </section>
@@ -507,7 +611,7 @@ export function MapView() {
         {selected && (
           <div className="stack">
             {selected.distanceMiles != null && centre && (
-              <p className="secondary" style={{ margin: 0, fontSize: 14 }}>
+              <p className="secondary" style={{ margin: 0, fontSize: 15 }}>
                 {distanceLabel(selected.distanceMiles)} from your search centre.
               </p>
             )}

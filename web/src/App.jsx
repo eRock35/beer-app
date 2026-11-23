@@ -49,7 +49,12 @@ const TABS = [
 const PRIMARY = TABS.filter((t) => !t.more && !t.hidden);
 const MORE = TABS.filter((t) => t.more);
 
-/** Hash routing — no router dependency, and deep links still work. */
+/**
+ * Hash routing — no router dependency, and deep links still work. A route is
+ * a section id, optionally followed by an action: #journal/new opens the
+ * journal with the pour form already up, which is what lets the home screen
+ * offer "Log a pour" in one tap.
+ */
 function useHashRoute(fallback = 'map') {
   const [route, setRoute] = useState(() => window.location.hash.slice(1) || fallback);
   useEffect(() => {
@@ -88,7 +93,8 @@ function Shell() {
   const [route, go] = useHashRoute();
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const tab = TABS.find((t) => t.id === route) || TABS[0];
+  const [section, action] = route.split('/');
+  const tab = TABS.find((t) => t.id === section) || TABS[0];
   const headerValue = useMemo(() => ({ setCollapsed }), []);
 
   useEffect(() => {
@@ -133,9 +139,8 @@ function Shell() {
               go('map');
             }}
           >
-            <GlassIcon className="brand-mark" />
+            <GlassIcon className="brand-mark" strokeWidth={1.5} />
             Hopscotch
-            <span className="brand-sub">Beer Passport</span>
           </a>
 
           <nav className="nav" aria-label="Sections">
@@ -147,8 +152,7 @@ function Shell() {
                 aria-current={t.id === tab.id ? 'page' : undefined}
                 onClick={() => go(t.id)}
               >
-                <t.Icon />
-                <span className="nav-label">{t.label}</span>
+                {t.label}
               </button>
             ))}
           </nav>
@@ -162,7 +166,7 @@ function Shell() {
             title={`Theme: ${theme}`}
             aria-label={`Theme: ${theme}. Click to change.`}
           >
-            {theme === 'dark' ? <MoonIcon size={22} /> : theme === 'light' ? <SunIcon size={22} /> : <CircleHalfIcon size={22} />}
+            {theme === 'dark' ? <MoonIcon size={20} strokeWidth={1.5} /> : theme === 'light' ? <SunIcon size={20} strokeWidth={1.5} /> : <CircleHalfIcon size={20} strokeWidth={1.5} />}
           </button>
 
           {user ? (
@@ -172,7 +176,7 @@ function Shell() {
               aria-current={tab.id === 'account' ? 'page' : undefined}
               onClick={() => go('account')}
             >
-              <PersonIcon />
+              <PersonIcon strokeWidth={1.5} />
               {user.displayName || 'Account'}
             </button>
           ) : (
@@ -187,7 +191,7 @@ function Shell() {
           <span className="compact-title">
             {isMap ? (
               <>
-                <GlassIcon className="brand-mark" />
+                <GlassIcon className="brand-mark" strokeWidth={1.5} />
                 Hopscotch
               </>
             ) : (
@@ -197,7 +201,7 @@ function Shell() {
         </div>
 
         <main className={`main${isMap ? ' is-map' : ''}${isChat ? ' is-chat' : ''}`}>
-          {needsAuth ? <AuthGate feature={tab.label} /> : <View go={go} onLogout={logout} />}
+          {needsAuth ? <AuthGate feature={tab.label} /> : <View go={go} onLogout={logout} action={action} />}
         </main>
 
         {/* Phone tab bar */}
@@ -210,20 +214,21 @@ function Shell() {
               aria-current={t.id === tab.id ? 'page' : undefined}
               onClick={() => go(t.id)}
             >
-              <t.Icon />
-              {t.label}
+              <t.Icon strokeWidth={1.5} />
+              <span className="tab-label">{t.label}</span>
             </button>
           ))}
           <button
             type="button"
-            className={`tab-item${moreActive ? ' is-active' : ''}`}
+            className="tab-item"
+            aria-label={moreActive ? `More. You are on ${tab.label}.` : 'More'}
             aria-current={moreActive ? 'page' : undefined}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             onClick={() => setMoreOpen(true)}
           >
-            <EllipsisCircleIcon />
-            More
+            <EllipsisCircleIcon strokeWidth={1.5} />
+            <span className="tab-label">{moreActive ? tab.label : 'More'}</span>
           </button>
         </nav>
 
