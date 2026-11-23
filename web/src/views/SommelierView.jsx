@@ -89,8 +89,8 @@ export function SommelierView({ go }) {
             </button>
           }
         >
-          This deployment has no Claude API key configured. Set <code>ANTHROPIC_API_KEY</code> on the
-          server and it turns on — the key stays server-side and is never sent to the browser.
+          The sommelier is not available right now. Your journal, passport and crawl planner all
+          work without it.
         </Empty>
       </>
     );

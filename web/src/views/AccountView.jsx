@@ -109,7 +109,7 @@ export function AccountView({ onLogout, go }) {
         footer={
           aiEnabled
             ? 'The API key lives on the server only — it is never sent to your browser.'
-            : 'Set ANTHROPIC_API_KEY on the server to enable it.'
+            : 'Not available right now.'
         }
       >
         <Row icon={<SparkleIcon />} title="Claude sommelier" trailing={aiEnabled ? 'On' : 'Off'} />

@@ -34,7 +34,9 @@ import { SharedCrawlView, sharedCrawlId } from './views/SharedCrawlView.jsx';
 const TABS = [
   { id: 'map', label: 'Find', Icon: MapPinIcon, view: MapView, public: true },
   { id: 'journal', label: 'Journal', Icon: BookIcon, view: JournalView },
-  { id: 'passport', label: 'Passport', Icon: TicketIcon, view: PassportView },
+  // Signed out, the Passport shows the worked example (public, seed data, no
+  // account) with a sign-in call to action - see PassportView.
+  { id: 'passport', label: 'Passport', Icon: TicketIcon, view: PassportView, public: true },
   // Planning a crawl needs no account - only keeping one does - so a visitor
   // can try the thing the app is for before signing up. The view hides Save
   // until they do.

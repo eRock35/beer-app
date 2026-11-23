@@ -49,11 +49,6 @@ export function TripsView({ action }) {
         <Empty
           icon={<SignpostIcon />}
           title="No trips planned"
-          action={
-            <button type="button" className="btn btn-primary" onClick={() => setPlanning(true)}>
-              Plan your first
-            </button>
-          }
         >
           {user
             ? 'Next time work sends you somewhere, plan the crawl before you land.'

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
-import { useAsync } from '../store.jsx';
+import { useApp, useAsync } from '../store.jsx';
 import { Banner, Empty, ErrorState, ScorePill, Stat } from '../components/ui.jsx';
 import { PageTitle } from '../components/header.jsx';
 import { CheckIcon, FlameIcon, MapPinIcon, PeopleIcon, ShareIcon, TicketIcon } from '../components/icons.jsx';
@@ -10,23 +10,32 @@ import { ShareSheet } from '../components/ShareSheet.jsx';
 import { SharedLinks } from '../components/SharedLinks.jsx';
 
 export function PassportView({ go }) {
-  const { data, loading, error, reload } = useAsync(() => api.passport(), []);
+  const { user } = useApp();
+  // Signed out, the page is the worked example from the public
+  // /api/passport/sample (seed data, no account behind it) with a way in -
+  // so a visitor sees what a passport is before being asked to make one.
+  const signedOut = !user;
+  const { data, loading, error, reload } = useAsync(
+    () => (signedOut ? api.samplePassport() : api.passport()),
+    [signedOut]
+  );
   const [showTable, setShowTable] = useState(false);
   // The worked example, loaded on request. It replaces what is drawn below
   // rather than sitting beside it, because half a real passport next to half a
   // fake one is the worst of both.
-  const [sample, setSample] = useState(null);
+  const [chosenSample, setChosenSample] = useState(null);
+  const sample = signedOut ? data : chosenSample;
   const [sampleError, setSampleError] = useState('');
   const [sharing, setSharing] = useState(false);
   // Where you sit against other drinkers, per style. Your own passport only -
   // the worked example has no drinker to compare.
-  const palate = useAsync(() => api.crowdPalate(), [], { enabled: Boolean(data?.stats?.total) });
-  const shares = useAsync(() => api.shares(), [], { enabled: Boolean(data) });
+  const palate = useAsync(() => api.crowdPalate(), [], { enabled: !signedOut && Boolean(data?.stats?.total) });
+  const shares = useAsync(() => api.shares(), [], { enabled: !signedOut && Boolean(data) });
 
   if (loading) {
     return (
       <>
-        <PageTitle eyebrow="Your record" title="Passport" />
+        <PageTitle eyebrow={signedOut ? 'An example' : 'Your record'} title="Passport" />
         <div className="grid grid-stats" aria-busy="true" aria-label="Loading">
           {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 96 }} />)}
         </div>
@@ -39,8 +48,10 @@ export function PassportView({ go }) {
   if (error) {
     return (
       <>
-        <PageTitle eyebrow="Your record" title="Passport" />
-        <ErrorState title="Could not load your passport" onRetry={reload}>{error}</ErrorState>
+        <PageTitle eyebrow={signedOut ? 'An example' : 'Your record'} title="Passport" />
+        <ErrorState title={signedOut ? 'Could not load the example passport' : 'Could not load your passport'} onRetry={reload}>
+          {error}
+        </ErrorState>
       </>
     );
   }
@@ -66,7 +77,7 @@ export function PassportView({ go }) {
                 onClick={async () => {
                   setSampleError('');
                   try {
-                    setSample(await api.samplePassport());
+                    setChosenSample(await api.samplePassport());
                   } catch (err) {
                     setSampleError(err.message);
                   }
@@ -91,11 +102,11 @@ export function PassportView({ go }) {
 
   return (
     <div className="stack">
-      {sample && (
+      {sample && !signedOut && (
         <Banner kind="info">
           This is {sample.by}&rsquo;s passport, not yours — a worked example so you can see what
           fills in.{' '}
-          <button type="button" className="btn btn-sm" style={{ marginLeft: 6 }} onClick={() => setSample(null)}>
+          <button type="button" className="btn btn-sm" style={{ marginLeft: 6 }} onClick={() => setChosenSample(null)}>
             Back to mine
           </button>
         </Banner>
@@ -106,13 +117,25 @@ export function PassportView({ go }) {
         title="Passport"
         className="page-head-flush"
         action={
-          !sample && (
-            <button type="button" className="btn btn-secondary" onClick={() => setSharing(true)}>
-              <ShareIcon /> Share passport
+          signedOut ? (
+            <button type="button" className="btn btn-primary" onClick={() => go('journal')}>
+              Sign in to start yours
             </button>
+          ) : (
+            !sample && (
+              <button type="button" className="btn btn-secondary" onClick={() => setSharing(true)}>
+                <ShareIcon /> Share passport
+              </button>
+            )
           )
         }
       >
+        {signedOut && (
+          <>
+            This is an example: {sample.by}&rsquo;s passport, made from sample pours, not a real
+            account. Yours fills in the same way from the beers you log.{' '}
+          </>
+        )}
         {stats.total} beers, {stats.breweries} breweries, {stats.states.length}{' '}
         {stats.states.length === 1 ? 'state' : 'states'}. {earnedCount} of {badges.length} badges earned.
       </PageTitle>
@@ -142,13 +165,13 @@ export function PassportView({ go }) {
 
       <div className="grid grid-2">
         <section className="card">
-          <div className="chart-title">Your palate</div>
+          <div className="chart-title">{sample ? 'Their palate' : 'Your palate'}</div>
           <div className="chart-sub">Average score per axis, out of ten. Tap a point for the count.</div>
           <PalateRadar palate={axes} />
         </section>
 
         <section className="card">
-          <div className="chart-title">What you actually drink</div>
+          <div className="chart-title">{sample ? 'What they actually drink' : 'What you actually drink'}</div>
           <div className="chart-sub">Beers logged per style family.</div>
           <StyleBars families={families} />
         </section>
@@ -191,8 +214,8 @@ export function PassportView({ go }) {
 
       {topPours.length > 0 && (
         <section className="card">
-          <h3 className="card-title" style={{ marginBottom: 10 }}>Your top ten</h3>
-          <ol className="list-reset" style={{ display: 'grid', gap: 0 }}>
+          <h3 className="card-title" style={{ marginBottom: 10 }}>{sample ? 'Their top ten' : 'Your top ten'}</h3>
+          <ol className="list-reset" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 0 }}>
             {topPours.map((p, i) => (
               <li key={p.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '9px 0', borderTop: i ? '1px solid var(--sep)' : 0 }}>
                 <span className="muted tabular" style={{ width: 22, fontWeight: 700, fontSize: 15 }}>{i + 1}</span>
@@ -211,7 +234,11 @@ export function PassportView({ go }) {
 
       <section>
         <h2 className="section-title">Badges</h2>
-        <p className="section-sub">Earned from what is in your journal, recalculated every time you open this page.</p>
+        <p className="section-sub">
+          {sample
+            ? 'Earned from what is in the example journal. Yours are worked out from your own.'
+            : 'Earned from what is in your journal, recalculated every time you open this page.'}
+        </p>
 
         <div className="grid grid-3">
           {[...earned, ...locked].map((badge) => (
@@ -246,7 +273,7 @@ export function PassportView({ go }) {
       {stats.cities.length > 0 && (
         <section className="card">
           <h3 className="card-title" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <MapPinIcon size={18} /> Where you have been drinking
+            <MapPinIcon size={18} /> {sample ? 'Where they have been drinking' : 'Where you have been drinking'}
           </h3>
           <div className="chips chips-sm">
             {stats.cities.map((c) => (

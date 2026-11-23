@@ -74,8 +74,8 @@ export function DispatchView({ go }) {
           title="Dispatch needs the sommelier"
           action={<button type="button" className="btn btn-secondary" onClick={() => go('map')}>Back to the map</button>}
         >
-          Scanning for releases means searching the live web, which runs through Claude. Set{' '}
-          <code>ANTHROPIC_API_KEY</code> on the server to switch it on.
+          Scanning for releases means searching the live web, which runs through the sommelier,
+          and the sommelier is not available right now.
         </Empty>
       </>
     );

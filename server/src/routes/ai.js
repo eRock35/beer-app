@@ -26,7 +26,7 @@ function anthropic() {
   if (!config.anthropicApiKey) {
     throw new HttpError(
       503,
-      'The sommelier is off. Set ANTHROPIC_API_KEY on the server to switch it on.'
+      'The sommelier is not available right now.'
     );
   }
   if (!client) client = new Anthropic({ apiKey: config.anthropicApiKey });
@@ -53,7 +53,9 @@ export function mapAnthropicError(err) {
 
   const status = err?.status ?? err?.response?.status;
   if (status === 401 || status === 403) {
-    return new HttpError(503, 'The sommelier’s API key was rejected. Check ANTHROPIC_API_KEY on the server.');
+    // The cause is for whoever runs the server, not the person using the app.
+    console.error(`[hopscotch] the model API refused ANTHROPIC_API_KEY (${status}).`);
+    return new HttpError(503, 'The sommelier is not available right now.');
   }
   if (status === 429) {
     return new HttpError(429, 'Claude is rate-limiting this key. Give it a moment.');

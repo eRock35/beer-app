@@ -135,3 +135,28 @@ test('a first visit shows an example, labelled as one, and never an empty map', 
   assert.match(map, /Find good beer wherever you land\./);
   assert.doesNotMatch(map, /setView\(\s*\[39\.5, -96\]/);
 });
+
+test('a signed-out visitor sees the example passport, labelled, with a way in', () => {
+  // Passport is public in the shell; the view loads the public sample when
+  // there is no user, says it is an example, and offers sign-in.
+  assert.ok(/\{ id: 'passport'[^}]*public: true/.test(app), 'passport tab is not public');
+  const passport = read('src/views/PassportView.jsx');
+  assert.match(passport, /signedOut \? api\.samplePassport\(\) : api\.passport\(\)/);
+  assert.match(passport, /This is an example/);
+  assert.match(passport, /className="btn btn-primary" onClick=\{\(\) => go\('journal'\)\}>\s*Sign in to start yours/);
+  // Signed out, nothing that needs an account is asked for.
+  assert.match(passport, /enabled: !signedOut && Boolean\(data\?\.stats\?\.total\)/);
+  assert.match(passport, /enabled: !signedOut && Boolean\(data\)/);
+});
+
+test('people never see server setup instructions', () => {
+  for (const f of fs.readdirSync(path.join(web, 'src', 'views'))) {
+    assert.doesNotMatch(read(`src/views/${f}`), /ANTHROPIC_API_KEY/, f);
+  }
+});
+
+test('the Trips empty state does not repeat the header\'s primary button', () => {
+  const trips = read('src/views/TripsView.jsx');
+  const empty = trips.slice(trips.indexOf('title="No trips planned"'), trips.indexOf('</Empty>'));
+  assert.doesNotMatch(empty, /btn-primary/);
+});

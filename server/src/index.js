@@ -88,6 +88,11 @@ export function appleAppSiteAssociation(_req, res) {
  * catch-all.
  */
 const TESTFLIGHT_LINK = /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]{4,20}$/;
+/** The read-only "who is signed in" check every page load makes. */
+export function isSessionCheck(req) {
+  return (req.method === 'GET' || req.method === 'HEAD') && req.path === '/me';
+}
+
 export function iosApp(_req, res) {
   const url = String(process.env.TESTFLIGHT_URL || '').trim();
   res.set('Cache-Control', 'public, max-age=300');
@@ -113,10 +118,16 @@ async function main() {
   app.use((req, res, next) => (SCAN_PATH.test(req.path) ? next() : json1mb(req, res, next)));
   app.use(cookieParser());
 
-  // Auth attempts get a tighter budget than ordinary browsing.
+  // Auth attempts get a tighter budget than ordinary browsing. "Attempts"
+  // means requests that carry a credential or change the account (login,
+  // register, link-shared, profile changes, logout). GET /me is not one: every
+  // page load asks it who is signed in, so counting it let ordinary browsing
+  // spend the budget and lock sign-in with "Too many attempts". It reads the
+  // session cookie and nothing else, and stays under the /api limiter below.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 30,
+    skip: isSessionCheck,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many attempts. Give it fifteen minutes.' },

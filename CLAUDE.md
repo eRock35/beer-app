@@ -71,6 +71,13 @@ What holds now:
   a signed-out visitor what the app is, with "Plan a crawl" and "Sign in".
   Signed in, the same spot holds "Log a pour" and "Plan a crawl". The last
   real search is remembered in `localStorage` (`hopscotch:last-search`) only.
+- **Passport, signed out** (2026-11-23) shows the worked example from the
+  public `/api/passport/sample`, says it is one, and offers "Sign in to start
+  yours". Nothing that needs an account (crowd standing, shared links) is
+  requested.
+- **The auth limiter** (30 per 15 minutes per IP) skips `GET /api/auth/me`,
+  the session check every page load makes, so browsing cannot lock sign-in.
+  Every other `/api/auth` route stays under it (`test/auth-limit.test.js`).
 - **Routes** are `#section` or `#section/action`. `#journal/new` and
   `#trips/new` open with the form already up - that is what makes the home
   buttons one tap. Old `#section` links are unchanged.
