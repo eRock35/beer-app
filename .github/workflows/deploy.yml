@@ -16,7 +16,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Prefer Workload Identity Federation over a downloaded key: set
       # GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT as repo secrets.
